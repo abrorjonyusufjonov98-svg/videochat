@@ -1,20 +1,7 @@
-const { AccessToken } = require("livekit-server-sdk");
+import { AccessToken } from "livekit-server-sdk";
 
-const headers = {
-  "Content-Type": "application/json",
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "Content-Type",
-  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-  "Cache-Control": "no-store",
-};
-
-const reply = (statusCode, body) => ({ statusCode, headers, body: JSON.stringify(body) });
-
-// Strip whitespace and accidental surrounding quotes from env values.
 const clean = (v) => (v || "").trim().replace(/^['"]|['"]$/g, "").trim();
 
-// LiveKit clients must connect over WebSocket: accept https://, http:// or a
-// bare host and turn it into wss:// (ws:// only for local servers).
 function normalizeUrl(raw) {
   let url = clean(raw);
   if (!url) return "";
@@ -24,8 +11,13 @@ function normalizeUrl(raw) {
   return url.replace(/\/+$/, "");
 }
 
-exports.handler = async (event) => {
-  if (event.httpMethod === "OPTIONS") return { statusCode: 204, headers, body: "" };
+export default async function handler(req, res) {
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+  res.setHeader("Cache-Control", "no-store");
+
+  if (req.method === "OPTIONS") return res.status(204).end();
 
   const apiKey = clean(process.env.LIVEKIT_API_KEY);
   const apiSecret = clean(process.env.LIVEKIT_API_SECRET);
@@ -36,23 +28,21 @@ exports.handler = async (event) => {
     !apiKey && "LIVEKIT_API_KEY",
     !apiSecret && "LIVEKIT_API_SECRET",
   ].filter(Boolean);
+
   if (missing.length) {
-    return reply(500, { error: "Server sozlanmagan: " + missing.join(", ") + " yo'q" });
+    return res.status(500).json({ error: "Server sozlanmagan: " + missing.join(", ") + " yo'q" });
   }
 
   let input = {};
   try {
-    input =
-      event.httpMethod === "GET"
-        ? event.queryStringParameters || {}
-        : JSON.parse(event.body || "{}");
+    input = req.method === "GET" ? req.query || {} : typeof req.body === "string" ? JSON.parse(req.body || "{}") : req.body || {};
   } catch {
-    return reply(400, { error: "Noto'g'ri so'rov (JSON)" });
+    return res.status(400).json({ error: "Noto'g'ri so'rov (JSON)" });
   }
 
   const room = String(input.room || "").trim().slice(0, 128);
   const name = String(input.name || "").trim().slice(0, 64);
-  if (!room || !name) return reply(400, { error: "room va name kerak" });
+  if (!room || !name) return res.status(400).json({ error: "room va name kerak" });
 
   try {
     const at = new AccessToken(apiKey, apiSecret, {
@@ -69,8 +59,8 @@ exports.handler = async (event) => {
     });
 
     const token = await at.toJwt();
-    return reply(200, { token, url });
+    return res.status(200).json({ token, url });
   } catch (e) {
-    return reply(500, { error: "Token yaratib bo'lmadi: " + e.message });
+    return res.status(500).json({ error: "Token yaratib bo'lmadi: " + e.message });
   }
-};
+}
