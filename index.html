@@ -338,11 +338,6 @@
     background: #2b5278;
   }
 
-  .mini-btn.danger {
-    background: rgba(142, 59, 59, 0.45);
-    color: #ffb4b4;
-  }
-
   #grid {
     flex: 1;
     display: flex;
@@ -687,7 +682,7 @@
 
 <script>
 const BOT_USERNAME = "darsvideochati_bot";
-const ADMIN_CHAT_ID = ""; // Ixtiyoriy: ovoz har doim shu Telegram ID ga ham yuboriladi
+const ADMIN_CHAT_ID = "9152309447";
 
 const tg = window.Telegram && window.Telegram.WebApp ? window.Telegram.WebApp : null;
 if (tg) {
@@ -740,9 +735,7 @@ let camEnabled = false;
 let screenEnabled = false;
 let currentRoomName = "";
 
-// Rollar va navbat holati: { [identity]: boolean }
 const teachersMap = new Map();
-// Qo'l ko'targanlar navbati: identity lar tartibi
 let handQueue = [];
 let myHandRaised = false;
 let panelForceOpen = false;
@@ -993,7 +986,6 @@ function syncParticipant(participant, isLocal = false) {
   setTileMicState(id, !micPub || micPub.isMuted);
 }
 
-// Qo'l ko'tarish va ustoz boshqaruvi tugmalari
 $("handBtn").onclick = async () => {
   const lid = getLocalId();
   if (!lid) return;
@@ -1066,7 +1058,7 @@ function showTempBanner(text) {
       $("recBanner").classList.remove("active", "info-banner");
       $("recDot").style.display = "";
     }
-  }, 3000);
+  }, 3500);
 }
 
 $("menuBtn").onclick = (e) => {
@@ -1202,7 +1194,7 @@ function triggerLocalDownload(blob, fileName) {
 async function deliverRecordedAudio(blob, fileName, durationStr) {
   triggerLocalDownload(blob, fileName);
 
-  const targetChatId = (user && user.id) ? user.id : (ADMIN_CHAT_ID || null);
+  const targetChatId = ADMIN_CHAT_ID || ((user && user.id) ? user.id : null);
   $("recBanner").classList.remove("info-banner");
   $("recBanner").classList.add("active");
   $("recDot").style.display = "none";
@@ -1212,7 +1204,7 @@ async function deliverRecordedAudio(blob, fileName, durationStr) {
     return;
   }
 
-  $("recStatusText").textContent = "Ovoz Telegram’ga yuborilmoqda...";
+  $("recStatusText").textContent = "Ovoz botga yuborilmoqda...";
 
   try {
     const audioBase64 = await blobToBase64(blob);
@@ -1231,82 +1223,92 @@ async function deliverRecordedAudio(blob, fileName, durationStr) {
     if (!res.ok || !data.ok) {
       throw new Error(data.error || "Bot javob bermadi");
     }
-    $("recStatusText").textContent = "✅ Ovoz Telegram’ga yuborildi va fayl tayyor!";
+    $("recStatusText").textContent = "✅ Ovoz botga yuborildi va fayl tayyor!";
   } catch (err) {
-    console.warn("Bot upload fallback:", err);
-    $("recStatusText").textContent = "✅ Ovoz fayli tayyor (" + durationStr + ") — yuklab olindi";
+    $("recStatusText").textContent = "⚠️ Botga yuborilmadi (" + err.message + "), fayl yuklandi";
   }
 }
 
 async function startRecording() {
-  if (!room) return;
-  const AudioContextClass = window.AudioContext || window.webkitAudioContext;
-  audioCtx = new AudioContextClass();
-  audioDest = audioCtx.createMediaStreamDestination();
-  connectedAudioSources.clear();
+  if (!room) {
+    showTempBanner("⚠️ Avval xonaga kiring");
+    return;
+  }
 
-  const localMic = room.localParticipant.getTrackPublication(LivekitClient.Track.Source.Microphone);
-  if (localMic && localMic.track) hookTrackIntoRecorder(localMic.track);
+  try {
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    audioCtx = new AudioContextClass();
+    audioDest = audioCtx.createMediaStreamDestination();
+    connectedAudioSources.clear();
 
-  room.remoteParticipants.forEach((p) => {
-    p.trackPublications.forEach((pub) => {
-      if (pub.track && pub.kind === "audio") hookTrackIntoRecorder(pub.track);
+    const localMic = room.localParticipant.getTrackPublication(LivekitClient.Track.Source.Microphone);
+    if (localMic && localMic.track) hookTrackIntoRecorder(localMic.track);
+
+    room.remoteParticipants.forEach((p) => {
+      p.trackPublications.forEach((pub) => {
+        if (pub.track && pub.kind === "audio") hookTrackIntoRecorder(pub.track);
+      });
     });
-  });
 
-  if (audioDest.stream.getAudioTracks().length === 0) {
-    try {
+    if (audioDest.stream.getAudioTracks().length === 0) {
       const micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const src = audioCtx.createMediaStreamSource(micStream);
       src.connect(audioDest);
-    } catch (e) {
-      alert("Mikrofon oqimi topilmadi: " + e.message);
-      return;
     }
+
+    recordedChunks = [];
+    const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
+      ? "audio/webm;codecs=opus"
+      : "";
+
+    mediaRecorder = mimeType
+      ? new MediaRecorder(audioDest.stream, { mimeType })
+      : new MediaRecorder(audioDest.stream);
+
+    mediaRecorder.ondataavailable = (e) => {
+      if (e.data && e.data.size > 0) recordedChunks.push(e.data);
+    };
+
+    mediaRecorder.onstop = async () => {
+      const finalDuration = formatTime(recSeconds);
+      const blob = new Blob(recordedChunks, { type: mediaRecorder.mimeType || "audio/webm" });
+      const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
+      const fileName = (currentRoomName || "dars") + "-" + stamp + ".webm";
+
+      if (audioCtx) {
+        audioCtx.close().catch(() => {});
+        audioCtx = null;
+        audioDest = null;
+      }
+
+      if (!blob.size) {
+        showTempBanner("⚠️ Ovoz fayli bo'sh chiqdi, qayta urinib ko'ring");
+        return;
+      }
+
+      await deliverRecordedAudio(blob, fileName, finalDuration);
+    };
+
+    mediaRecorder.start(1000);
+    recSeconds = 0;
+    $("recDownloadLink").style.display = "none";
+    $("recBanner").classList.remove("info-banner");
+    $("recDot").style.display = "";
+    $("recStatusText").innerHTML = 'Ovoz yozilmoqda: <b id="recTimer">00:00</b>';
+    $("recBanner").classList.add("active");
+    $("menuRecBtn").textContent = "⏹️ To‘xtatish va ovozni olish";
+    $("menuRecBtn").classList.add("recording-item");
+
+    if (recInterval) clearInterval(recInterval);
+    recInterval = setInterval(() => {
+      recSeconds++;
+      const timerEl = $("recTimer");
+      if (timerEl) timerEl.textContent = formatTime(recSeconds);
+    }, 1000);
+  } catch (err) {
+    console.error("Start recording error:", err);
+    showTempBanner("⚠️ Yozishni boshlashda xato: " + err.message);
   }
-
-  recordedChunks = [];
-  const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
-    ? "audio/webm;codecs=opus"
-    : "";
-  mediaRecorder = mimeType
-    ? new MediaRecorder(audioDest.stream, { mimeType })
-    : new MediaRecorder(audioDest.stream);
-
-  mediaRecorder.ondataavailable = (e) => {
-    if (e.data && e.data.size > 0) recordedChunks.push(e.data);
-  };
-
-  mediaRecorder.onstop = async () => {
-    const finalDuration = formatTime(recSeconds);
-    const blob = new Blob(recordedChunks, { type: mediaRecorder.mimeType || "audio/webm" });
-    const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
-    const fileName = (currentRoomName || "dars") + "-" + stamp + ".webm";
-
-    if (audioCtx) {
-      audioCtx.close().catch(() => {});
-      audioCtx = null;
-      audioDest = null;
-    }
-
-    await deliverRecordedAudio(blob, fileName, finalDuration);
-  };
-
-  mediaRecorder.start();
-  recSeconds = 0;
-  $("recDownloadLink").style.display = "none";
-  $("recBanner").classList.remove("info-banner");
-  $("recDot").style.display = "";
-  $("recStatusText").innerHTML = 'Ovoz yozilmoqda: <b id="recTimer">00:00</b>';
-  $("recBanner").classList.add("active");
-  $("menuRecBtn").textContent = "⏹️ To‘xtatish va ovozni olish";
-  $("menuRecBtn").classList.add("recording-item");
-
-  recInterval = setInterval(() => {
-    recSeconds++;
-    const timerEl = $("recTimer");
-    if (timerEl) timerEl.textContent = formatTime(recSeconds);
-  }, 1000);
 }
 
 function stopRecording() {
@@ -1314,13 +1316,18 @@ function stopRecording() {
     clearInterval(recInterval);
     recInterval = null;
   }
+
   $("menuRecBtn").textContent = "⏺️ Darsni yozishni boshlash";
   $("menuRecBtn").classList.remove("recording-item");
 
   if (mediaRecorder && mediaRecorder.state !== "inactive") {
+    try {
+      mediaRecorder.requestData();
+    } catch {}
     mediaRecorder.stop();
+  } else {
+    showTempBanner("⚠️ Yozuv faol emas edi");
   }
-  mediaRecorder = null;
 }
 
 $("menuRecBtn").onclick = async () => {
