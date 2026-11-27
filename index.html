@@ -764,7 +764,7 @@
 
 <script>
 const BOT_USERNAME = "darsvideochati_bot";
-const ADMIN_CHAT_ID = "9152309447";
+const OWNER_CHAT_IDS = ["9152309447", "8259169140"];
 const ALLOWED_OWNER_IDS = ["9152309447", "8259169140"];
 
 const tg = window.Telegram && window.Telegram.WebApp ? window.Telegram.WebApp : null;
@@ -847,7 +847,6 @@ let camEnabled = false;
 let screenEnabled = false;
 let currentRoomName = "";
 
-// Tizim / ekran audiosini LiveKit'ga yuborish uchun holat
 let sharedAudioTrack = null;
 let sharedAudioPublication = null;
 
@@ -1242,7 +1241,6 @@ function syncParticipant(participant, isLocal = false) {
   setTileMicState(id, !micPub || micPub.isMuted);
 }
 
-// Tizim / ekran audiosini LiveKit'ga alohida ulash
 async function publishSystemScreenAudio(audioTracks) {
   if (!room || !room.localParticipant) return;
   await unpublishSystemScreenAudio();
@@ -1475,46 +1473,71 @@ function triggerLocalDownload(blob, fileName) {
   dlBtn.style.display = "inline-block";
 }
 
-async function deliverRecordedMedia(blob, fileName, durationStr, labelPrefix = "Ovoz") {
+function getRecipientChatIds() {
+  const ids = new Set(OWNER_CHAT_IDS.map((x) => String(x)));
+  if (user && user.id != null) {
+    ids.add(String(user.id));
+  }
+  return Array.from(ids);
+}
+
+async function deliverRecordedMedia(blob, fileName, durationStr, labelPrefix = "Ovoz", mediaType = "audio") {
   triggerLocalDownload(blob, fileName);
 
-  const targetChatId = ADMIN_CHAT_ID || ((user && user.id) ? user.id : null);
+  const recipientIds = getRecipientChatIds();
   $("recBanner").classList.remove("info-banner");
   $("recBanner").classList.add("active");
   $("recDot").style.display = "none";
 
-  if (!targetChatId) {
+  if (recipientIds.length === 0) {
     $("recStatusText").textContent = "✅ " + labelPrefix + " yozildi (" + durationStr + ") va qurilmaga yuklandi!";
     return;
   }
 
-  $("recStatusText").textContent = labelPrefix + " botga yuborilmoqda...";
+  $("recStatusText").textContent = labelPrefix + " egalariga yuborilmoqda...";
 
   try {
-    const audioBase64 = await blobToBase64(blob);
-    const res = await fetch("/api/upload-audio", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        audioBase64,
-        fileName,
-        chatId: targetChatId,
-        roomName: currentRoomName,
-        duration: durationStr
-      })
-    });
-    const data = await res.json();
-    if (!res.ok || !data.ok) {
-      throw new Error(data.error || "Bot javob bermadi");
+    const mediaBase64 = await blobToBase64(blob);
+    let sentCount = 0;
+    const errors = [];
+
+    for (const chatId of recipientIds) {
+      const res = await fetch("/api/upload-audio", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          audioBase64: mediaBase64,
+          mediaBase64,
+          mediaType,
+          mimeType: blob.type || (mediaType === "video" ? "video/webm" : "audio/webm"),
+          fileName,
+          chatId,
+          roomName: currentRoomName,
+          duration: durationStr
+        })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.ok !== false) {
+        sentCount++;
+      } else {
+        errors.push(chatId + ": " + (data.error || res.status));
+      }
     }
-    $("recStatusText").textContent = "✅ " + labelPrefix + " botga yuborildi va fayl tayyor!";
+
+    if (sentCount > 0 && errors.length === 0) {
+      $("recStatusText").textContent = "✅ " + labelPrefix + " egalarga (" + sentCount + " ta) yuborildi!";
+    } else if (sentCount > 0) {
+      $("recStatusText").textContent = "✅ " + sentCount + " ta egaga yuborildi, qolgani: " + errors.join(", ");
+    } else {
+      throw new Error(errors.join("; ") || "Bot javob bermadi");
+    }
   } catch (err) {
     $("recStatusText").textContent = "⚠️ Botga yuborilmadi (" + err.message + "), fayl yuklandi";
   }
 }
 
 async function deliverRecordedAudio(blob, fileName, durationStr) {
-  return deliverRecordedMedia(blob, fileName, durationStr, "Ovoz");
+  return deliverRecordedMedia(blob, fileName, durationStr, "Ovoz", "audio");
 }
 
 async function startScreenRecordingWithStream(existingStream = null) {
@@ -1548,7 +1571,7 @@ async function startScreenRecordingWithStream(existingStream = null) {
       "video/webm;codecs=vp9,opus",
       "video/webm"
     ];
-    const chosenMime = mimeCandidates.find((m) => MediaRecorder.isTypeSupported(m)) || "";
+    const chosenMime = mimeCandidates.find((m) => MediaRecorder.isTypeSupported(m)) || "video/webm";
 
     screenRecorder = chosenMime
       ? new MediaRecorder(combinedStream, { mimeType: chosenMime })
@@ -1571,7 +1594,8 @@ async function startScreenRecordingWithStream(existingStream = null) {
         screenRecInterval = null;
       }
       const finalDuration = formatTime(screenRecSeconds);
-      const blob = new Blob(screenChunks, { type: (screenRecorder && screenRecorder.mimeType) || "video/webm" });
+      const videoMime = (screenRecorder && screenRecorder.mimeType) || "video/webm";
+      const blob = new Blob(screenChunks, { type: videoMime });
 
       if (!existingStream && screenCaptureStream) {
         screenCaptureStream.getTracks().forEach((t) => t.stop());
@@ -1580,13 +1604,13 @@ async function startScreenRecordingWithStream(existingStream = null) {
       screenRecorder = null;
 
       if (!blob.size) {
-        showTempBanner("⚠️ Ekran yozuvi bo'sh chiqdi");
+        showTempBanner("⚠️ Ekran videosi bo'sh chiqdi");
         return;
       }
 
       const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
-      const fileName = (currentRoomName || "dars") + "-ekran-" + stamp + ".webm";
-      await deliverRecordedMedia(blob, fileName, finalDuration, "Ekran yozuvi");
+      const fileName = (currentRoomName || "dars") + "-ekran-video-" + stamp + ".webm";
+      await deliverRecordedMedia(blob, fileName, finalDuration, "Ekran videosi", "video");
     };
 
     screenRecorder.start(1000);
@@ -1594,7 +1618,7 @@ async function startScreenRecordingWithStream(existingStream = null) {
     $("recDownloadLink").style.display = "none";
     $("recBanner").classList.remove("info-banner");
     $("recDot").style.display = "";
-    $("recStatusText").innerHTML = 'Ekran yozilmoqda: <b id="recTimer">00:00</b>';
+    $("recStatusText").innerHTML = 'Ekran video yozilmoqda: <b id="recTimer">00:00</b>';
     $("recBanner").classList.add("active");
 
     if (screenRecInterval) clearInterval(screenRecInterval);
@@ -1607,7 +1631,7 @@ async function startScreenRecordingWithStream(existingStream = null) {
     }, 1000);
   } catch (err) {
     console.warn("Screen recording error:", err);
-    showTempBanner("⚠️ Ekran yozish boshlanmadi");
+    showTempBanner("⚠️ Ekran video yozish boshlanmadi");
   }
 }
 
@@ -2067,7 +2091,7 @@ $("screenBtn").onclick = async () => {
         await publishSystemScreenAudio(audioMediaTracks);
         showTempBanner("🔊 Ekran va tizim ovozi (ashula) o‘quvchilarga ulashildi");
       } else {
-        showTempBanner("⚠️ Ekran ulashildi, lekin tizim/tab ovozi tanlanmadi (Share tab/system audio ni yoqing)");
+        showTempBanner("⚠️ Ekran ulashildi, lekin tizim/tab ovozi tanlanmadi");
       }
 
       screenEnabled = true;
