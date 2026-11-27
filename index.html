@@ -2,25 +2,326 @@
 <html lang="uz">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
 <title>Videochat</title>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/livekit-client@2.5.7/dist/livekit-client.umd.min.js"></script>
 <style>
-  :root { --bg: var(--tg-theme-bg-color, #ffffff); --fg: var(--tg-theme-text-color, #111111); --btn: var(--tg-theme-button-color, #2481cc); --btnfg: var(--tg-theme-button-text-color, #ffffff); }
-  * { box-sizing: border-box; }
-  body { margin: 0; font-family: system-ui, sans-serif; background: var(--bg); color: var(--fg); height: 100vh; display: flex; flex-direction: column; }
-  #join { padding: 24px; display: flex; flex-direction: column; gap: 12px; margin: auto; width: 100%; max-width: 360px; }
-  input, button { padding: 14px; font-size: 16px; border-radius: 10px; border: 1px solid #8884; }
-  button { background: var(--btn); color: var(--btnfg); border: none; cursor: pointer; }
-  #call { display: none; flex: 1; flex-direction: column; min-height: 0; }
-  #grid { flex: 1; display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 6px; padding: 6px; overflow: auto; }
-  .tile { position: relative; background: #000; border-radius: 10px; overflow: hidden; min-height: 140px; }
-  .tile video { width: 100%; height: 100%; object-fit: cover; }
-  .tile span { position: absolute; left: 8px; bottom: 6px; color: #fff; font-size: 13px; text-shadow: 0 0 4px #000; }
-  #controls { display: flex; gap: 8px; padding: 10px; justify-content: center; }
-  #controls button { flex: 1; max-width: 140px; }
-  #leave { background: #d33; }
+  :root {
+    --bg: #11161d;
+    --surface: #1b222c;
+    --surface-2: #242d3a;
+    --fg: #f3f6fa;
+    --muted: #9aa7b8;
+    --btn: #2481cc;
+    --btnfg: #ffffff;
+    --danger: #b83b3b;
+    --border: rgba(255, 255, 255, 0.08);
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    height: 100%;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    background: var(--bg);
+    color: var(--fg);
+    overflow: hidden;
+  }
+
+  body {
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* Kirish oynasi */
+  #join {
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin: auto;
+    width: 100%;
+    max-width: 380px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
+  }
+
+  #join h2 {
+    margin: 0 0 4px 0;
+    font-size: 22px;
+    text-align: center;
+  }
+
+  input {
+    padding: 13px 14px;
+    font-size: 15px;
+    border-radius: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    background: var(--surface-2);
+    color: var(--fg);
+    outline: none;
+  }
+
+  input:focus {
+    border-color: var(--btn);
+  }
+
+  input::placeholder {
+    color: var(--muted);
+  }
+
+  button {
+    border: none;
+    cursor: pointer;
+    font-family: inherit;
+    transition: transform 0.12s ease, opacity 0.15s ease, background 0.15s ease;
+  }
+
+  button:active {
+    transform: scale(0.96);
+  }
+
+  #joinBtn {
+    padding: 14px;
+    font-size: 16px;
+    font-weight: 600;
+    border-radius: 10px;
+    background: var(--btn);
+    color: var(--btnfg);
+  }
+
+  #status {
+    min-height: 18px;
+    color: #ff8a8a;
+    font-size: 13px;
+    text-align: center;
+    word-break: break-word;
+  }
+
+  /* Qo'ng'iroq oynasi */
+  #call {
+    display: none;
+    flex: 1;
+    flex-direction: column;
+    min-height: 0;
+    height: 100%;
+    background: var(--bg);
+  }
+
+  /* Yuqori sarlavha */
+  #topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+
+  #roomTitleWrap {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+
+  #roomTitle {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--fg);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  #participantCount {
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: 2px;
+  }
+
+  #copyRoomBtn {
+    background: var(--surface-2);
+    color: var(--fg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 7px 11px;
+    font-size: 12px;
+    font-weight: 600;
+    flex-shrink: 0;
+  }
+
+  /* Ishtirokchilar maydoni */
+  #grid {
+    flex: 1;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+    gap: 10px;
+    padding: 12px;
+    overflow-y: auto;
+    align-content: start;
+  }
+
+  .tile {
+    position: relative;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    overflow: hidden;
+    min-height: 170px;
+    aspect-ratio: 4 / 3;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .tile.speaking {
+    border-color: #38bdf8;
+    box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.25);
+  }
+
+  .tile video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+
+  .tile.video-off video {
+    display: none;
+  }
+
+  .avatar-box {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 12px;
+    text-align: center;
+  }
+
+  .avatar-circle {
+    width: 58px;
+    height: 58px;
+    border-radius: 50%;
+    background: #2b5b84;
+    color: #ffffff;
+    font-size: 20px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    letter-spacing: 0.5px;
+    user-select: none;
+  }
+
+  .status-text {
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  .tile-footer {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    padding: 8px 10px;
+    background: linear-gradient(transparent, rgba(0, 0, 0, 0.78));
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  .tile-name {
+    color: #fff;
+    font-size: 13px;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .mic-badge {
+    font-size: 12px;
+    color: #ff8a8a;
+    flex-shrink: 0;
+  }
+
+  /* Pastki boshqaruv tugmalari */
+  #controls {
+    display: flex;
+    gap: 14px;
+    padding: 12px 16px calc(22px + env(safe-area-inset-bottom, 0px));
+    justify-content: center;
+    align-items: center;
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+    flex-shrink: 0;
+    position: relative;
+    z-index: 20;
+  }
+
+  .ctrl-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 5px;
+    min-width: 60px;
+  }
+
+  .ctrl-btn {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background: var(--surface-2);
+    color: var(--fg);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    font-size: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .ctrl-btn.active {
+    background: var(--btn);
+    border-color: var(--btn);
+    color: #fff;
+  }
+
+  .ctrl-btn.off {
+    opacity: 0.6;
+  }
+
+  #leaveBtn {
+    background: var(--danger);
+    border-color: var(--danger);
+    color: #fff;
+  }
+
+  .ctrl-label {
+    font-size: 11px;
+    color: var(--muted);
+    user-select: none;
+  }
+
+  /* Netlify belgisini yashirishga urinish */
+  [class*="netlify-badge"],
+  [id*="netlify-badge"],
+  a[href*="netlify.com"] {
+    display: none !important;
+    visibility: hidden !important;
+    pointer-events: none !important;
+  }
 </style>
 </head>
 <body>
@@ -33,78 +334,279 @@
 </div>
 
 <div id="call">
+  <div id="topbar">
+    <div id="roomTitleWrap">
+      <div id="roomTitle">Xona</div>
+      <div id="participantCount">1 participant</div>
+    </div>
+    <button id="copyRoomBtn" type="button">Xona kodi</button>
+  </div>
+
   <div id="grid"></div>
+
   <div id="controls">
-    <button id="micBtn">Mikrofon</button>
-    <button id="camBtn">Kamera</button>
-    <button id="leave">Chiqish</button>
+    <div class="ctrl-item">
+      <button id="screenBtn" class="ctrl-btn" type="button" title="Ekran">🖥️</button>
+      <span class="ctrl-label">Screen</span>
+    </div>
+    <div class="ctrl-item">
+      <button id="camBtn" class="ctrl-btn active" type="button" title="Kamera">🎥</button>
+      <span class="ctrl-label">Video</span>
+    </div>
+    <div class="ctrl-item">
+      <button id="micBtn" class="ctrl-btn active" type="button" title="Mikrofon">🎤</button>
+      <span class="ctrl-label">Mic</span>
+    </div>
+    <div class="ctrl-item">
+      <button id="leaveBtn" class="ctrl-btn" type="button" title="Chiqish">📞</button>
+      <span class="ctrl-label">Leave</span>
+    </div>
   </div>
 </div>
 
 <script>
-const tg = window.Telegram.WebApp;
-tg.ready(); tg.expand();
+const tg = window.Telegram && window.Telegram.WebApp ? window.Telegram.WebApp : null;
+if (tg) {
+  tg.ready();
+  tg.expand();
+}
 
 const $ = (id) => document.getElementById(id);
-const user = tg.initDataUnsafe && tg.initDataUnsafe.user;
-if (user) $("name").value = user.first_name || "";
-const startRoom = tg.initDataUnsafe && tg.initDataUnsafe.start_param;
-if (startRoom) $("room").value = startRoom;
+const user = tg && tg.initDataUnsafe ? tg.initDataUnsafe.user : null;
+if (user && user.first_name) {
+  $("name").value = [user.first_name, user.last_name].filter(Boolean).join(" ");
+}
+const startRoom = tg && tg.initDataUnsafe ? tg.initDataUnsafe.start_param : null;
+if (startRoom) {
+  $("room").value = startRoom;
+}
 
 let room;
+let micEnabled = true;
+let camEnabled = true;
+let screenEnabled = false;
+let currentRoomName = "";
 
-function addTile(id, name) {
+function getInitials(fullName) {
+  const parts = String(fullName || "U").trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "U";
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
+function updateParticipantCount() {
+  if (!room) {
+    $("participantCount").textContent = "1 participant";
+    return;
+  }
+  const total = 1 + (room.remoteParticipants ? room.remoteParticipants.size : 0);
+  $("participantCount").textContent = total + (total === 1 ? " participant" : " participants");
+}
+
+function addTile(id, displayName) {
+  const safeName = displayName || id;
   let t = document.getElementById("t-" + id);
   if (!t) {
     t = document.createElement("div");
-    t.className = "tile"; t.id = "t-" + id;
-    t.innerHTML = "<span>" + name + "</span>";
+    t.className = "tile video-off";
+    t.id = "t-" + id;
+
+    const avatarBox = document.createElement("div");
+    avatarBox.className = "avatar-box";
+    avatarBox.innerHTML =
+      '<div class="avatar-circle">' + getInitials(safeName) + '</div>' +
+      '<div class="status-text">listening</div>';
+
+    const footer = document.createElement("div");
+    footer.className = "tile-footer";
+    footer.innerHTML =
+      '<span class="tile-name">' + safeName + '</span>' +
+      '<span class="mic-badge" id="mic-state-' + id + '"></span>';
+
+    t.appendChild(avatarBox);
+    t.appendChild(footer);
     $("grid").appendChild(t);
   }
   return t;
 }
 
-function attach(track, participant) {
-  const t = addTile(participant.identity, participant.name || participant.identity);
-  if (track.kind === "video") {
-    const old = t.querySelector("video"); if (old) old.remove();
-    t.prepend(track.attach());
+function setTileVideoState(id, hasVideo) {
+  const t = document.getElementById("t-" + id);
+  if (!t) return;
+  if (hasVideo) {
+    t.classList.remove("video-off");
   } else {
-    document.body.appendChild(track.attach());
+    t.classList.add("video-off");
   }
 }
+
+function setTileMicState(id, isMuted) {
+  const badge = document.getElementById("mic-state-" + id);
+  if (!badge) return;
+  badge.textContent = isMuted ? "🔇" : "";
+}
+
+function attach(track, participant) {
+  const id = participant.identity;
+  const displayName = participant.name || id;
+  const t = addTile(id, displayName);
+
+  if (track.kind === "video") {
+    const oldVideo = t.querySelector("video");
+    if (oldVideo) oldVideo.remove();
+    const videoEl = track.attach();
+    t.prepend(videoEl);
+    setTileVideoState(id, true);
+  } else if (track.kind === "audio") {
+    const audioEl = track.attach();
+    if (!participant.isLocal) {
+      document.body.appendChild(audioEl);
+    }
+  }
+}
+
+function detachTrack(track, participant) {
+  const els = track.detach();
+  els.forEach((el) => el.remove());
+  if (track.kind === "video" && participant) {
+    const t = document.getElementById("t-" + participant.identity);
+    if (t && !t.querySelector("video")) {
+      setTileVideoState(participant.identity, false);
+    }
+  }
+}
+
+function syncParticipant(participant, isLocal = false) {
+  const id = participant.identity;
+  const displayName = participant.name || id;
+  addTile(id, displayName);
+
+  let hasActiveVideo = false;
+  participant.trackPublications.forEach((pub) => {
+    if (pub.track && pub.kind === "video" && !pub.isMuted) {
+      attach(pub.track, participant);
+      hasActiveVideo = true;
+    } else if (pub.track && pub.kind === "audio" && !isLocal) {
+      attach(pub.track, participant);
+    }
+  });
+  setTileVideoState(id, hasActiveVideo);
+
+  const micPub = participant.getTrackPublication(LivekitClient.Track.Source.Microphone);
+  setTileMicState(id, !micPub || micPub.isMuted);
+}
+
+$("copyRoomBtn").onclick = async () => {
+  if (!currentRoomName) return;
+  try {
+    await navigator.clipboard.writeText(currentRoomName);
+    $("copyRoomBtn").textContent = "Nusxalandi";
+    setTimeout(() => { $("copyRoomBtn").textContent = "Xona kodi"; }, 1500);
+  } catch {
+    $("copyRoomBtn").textContent = currentRoomName;
+  }
+};
 
 $("joinBtn").onclick = async () => {
   const name = $("name").value.trim();
   const rname = $("room").value.trim();
-  if (!name || !rname) { $("status").textContent = "Ism va xona nomini kiriting"; return; }
+  if (!name || !rname) {
+    $("status").textContent = "Ism va xona nomini kiriting";
+    return;
+  }
+
   $("status").textContent = "Ulanmoqda...";
+  $("joinBtn").disabled = true;
+
   try {
     const res = await fetch("/.netlify/functions/token", {
       method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ room: rname, name })
     });
-    let data;
-    try { data = await res.json(); } catch { throw new Error("Token serveri javob bermadi (" + res.status + ")"); }
-    const { token, url, error } = data;
-    if (error || !res.ok) throw new Error(error || ("Token olinmadi (" + res.status + ")"));
-    if (!token || !url || !/^wss?:\/\//.test(url)) throw new Error("Server noto'g'ri LiveKit manzili yoki token qaytardi");
 
-    room = new LivekitClient.Room({ adaptiveStream: true, dynacast: true });
-    room.on(LivekitClient.RoomEvent.TrackSubscribed, (track, pub, p) => attach(track, p));
-    room.on(LivekitClient.RoomEvent.TrackUnsubscribed, (track) => track.detach().forEach(e => e.remove()));
-    room.on(LivekitClient.RoomEvent.ParticipantDisconnected, (p) => { const t = $("t-" + p.identity); if (t) t.remove(); });
+    let data;
+    try {
+      data = await res.json();
+    } catch {
+      throw new Error("Token serveri javob bermadi (" + res.status + ")");
+    }
+
+    const { token, url, error } = data;
+    if (error || !res.ok) {
+      throw new Error(error || ("Token olinmadi (" + res.status + ")"));
+    }
+    if (!token || !url || !/^wss?:\/\//.test(url)) {
+      throw new Error("Server noto'g'ri LiveKit manzili yoki token qaytardi");
+    }
+
+    room = new LivekitClient.Room({
+      adaptiveStream: true,
+      dynacast: true
+    });
+
+    room.on(LivekitClient.RoomEvent.TrackSubscribed, (track, pub, p) => {
+      attach(track, p);
+      if (track.kind === "video") setTileVideoState(p.identity, true);
+    });
+
+    room.on(LivekitClient.RoomEvent.TrackUnsubscribed, (track, pub, p) => {
+      detachTrack(track, p);
+    });
+
+    room.on(LivekitClient.RoomEvent.TrackMuted, (pub, p) => {
+      if (pub.kind === "audio") setTileMicState(p.identity, true);
+      if (pub.kind === "video") setTileVideoState(p.identity, false);
+    });
+
+    room.on(LivekitClient.RoomEvent.TrackUnmuted, (pub, p) => {
+      if (pub.kind === "audio") setTileMicState(p.identity, false);
+      if (pub.kind === "video" && pub.track) {
+        attach(pub.track, p);
+        setTileVideoState(p.identity, true);
+      }
+    });
+
+    room.on(LivekitClient.RoomEvent.ActiveSpeakersChanged, (speakers) => {
+      const speakerIds = new Set(speakers.map((s) => s.identity));
+      document.querySelectorAll(".tile").forEach((tile) => {
+        const pid = tile.id.replace(/^t-/, "");
+        const isSpeaking = speakerIds.has(pid);
+        tile.classList.toggle("speaking", isSpeaking);
+        const st = tile.querySelector(".status-text");
+        if (st) st.textContent = isSpeaking ? "speaking" : "listening";
+      });
+    });
+
+    room.on(LivekitClient.RoomEvent.ParticipantConnected, (p) => {
+      syncParticipant(p, false);
+      updateParticipantCount();
+    });
+
+    room.on(LivekitClient.RoomEvent.ParticipantDisconnected, (p) => {
+      const t = document.getElementById("t-" + p.identity);
+      if (t) t.remove();
+      updateParticipantCount();
+    });
+
     room.on(LivekitClient.RoomEvent.Disconnected, leave);
 
     await room.connect(url, token);
+
+    micEnabled = true;
+    camEnabled = true;
+    screenEnabled = false;
     await room.localParticipant.enableCameraAndMicrophone();
 
+    currentRoomName = rname;
+    $("roomTitle").textContent = rname;
     $("join").style.display = "none";
     $("call").style.display = "flex";
 
-    const camPub = room.localParticipant.getTrackPublication(LivekitClient.Track.Source.Camera);
-    if (camPub && camPub.track) attach(camPub.track, room.localParticipant);
-    room.remoteParticipants.forEach(p => p.trackPublications.forEach(pub => { if (pub.track) attach(pub.track, p); }));
+    syncParticipant(room.localParticipant, true);
+    room.remoteParticipants.forEach((p) => syncParticipant(p, false));
+    updateParticipantCount();
+    refreshControlButtons();
   } catch (e) {
     console.error(e);
     let msg = e && e.message ? e.message : String(e);
@@ -112,20 +614,88 @@ $("joinBtn").onclick = async () => {
       msg = "LiveKit tokenni rad etdi — API kalit/secret LiveKit loyihasiga mos emas (" + msg + ")";
     }
     $("status").textContent = "Xato: " + msg;
-    if (room) { try { await room.disconnect(); } catch {} room = null; }
+    if (room) {
+      try { await room.disconnect(); } catch {}
+      room = null;
+    }
+  } finally {
+    $("joinBtn").disabled = false;
   }
 };
 
-let mic = true, cam = true;
-$("micBtn").onclick = async () => { mic = !mic; await room.localParticipant.setMicrophoneEnabled(mic); $("micBtn").style.opacity = mic ? 1 : 0.5; };
-$("camBtn").onclick = async () => { cam = !cam; await room.localParticipant.setCameraEnabled(cam); $("camBtn").style.opacity = cam ? 1 : 0.5; };
-$("leave").onclick = () => room && room.disconnect();
+function refreshControlButtons() {
+  $("micBtn").classList.toggle("active", micEnabled);
+  $("micBtn").classList.toggle("off", !micEnabled);
+
+  $("camBtn").classList.toggle("active", camEnabled);
+  $("camBtn").classList.toggle("off", !camEnabled);
+
+  $("screenBtn").classList.toggle("active", screenEnabled);
+  $("screenBtn").classList.toggle("off", !screenEnabled);
+}
+
+$("micBtn").onclick = async () => {
+  if (!room) return;
+  micEnabled = !micEnabled;
+  await room.localParticipant.setMicrophoneEnabled(micEnabled);
+  setTileMicState(room.localParticipant.identity, !micEnabled);
+  refreshControlButtons();
+};
+
+$("camBtn").onclick = async () => {
+  if (!room) return;
+  camEnabled = !camEnabled;
+  await room.localParticipant.setCameraEnabled(camEnabled);
+
+  const localId = room.localParticipant.identity;
+  if (camEnabled) {
+    const camPub = room.localParticipant.getTrackPublication(LivekitClient.Track.Source.Camera);
+    if (camPub && camPub.track) {
+      attach(camPub.track, room.localParticipant);
+      setTileVideoState(localId, true);
+    }
+  } else {
+    const t = document.getElementById("t-" + localId);
+    if (t) {
+      const oldVideo = t.querySelector("video");
+      if (oldVideo) oldVideo.remove();
+    }
+    setTileVideoState(localId, false);
+  }
+  refreshControlButtons();
+};
+
+$("screenBtn").onclick = async () => {
+  if (!room) return;
+  try {
+    screenEnabled = !screenEnabled;
+    await room.localParticipant.setScreenShareEnabled(screenEnabled);
+    refreshControlButtons();
+  } catch (e) {
+    screenEnabled = false;
+    refreshControlButtons();
+    console.error("Screen share error:", e);
+  }
+};
+
+$("leaveBtn").onclick = async () => {
+  if (room) {
+    await room.disconnect();
+  } else {
+    leave();
+  }
+};
 
 function leave() {
+  room = null;
+  screenEnabled = false;
   $("call").style.display = "none";
   $("join").style.display = "flex";
   $("grid").innerHTML = "";
   $("status").textContent = "";
+  document.querySelectorAll("audio").forEach((el) => {
+    if (!el.closest("#call") && !el.closest("#join")) el.remove();
+  });
 }
 </script>
 </body>
