@@ -769,7 +769,7 @@ async function sendAudioToBot(blob, fileName, durationStr) {
       throw new Error("Telegram foydalanuvchi ID aniqlanmadi");
     }
     const audioBase64 = await blobToBase64(blob);
-    const res = await fetch("/.netlify/functions/upload-audio", {
+    const res = await fetch("/api/upload-audio", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -918,7 +918,7 @@ async function joinRoom() {
   $("joinBtn").disabled = true;
 
   try {
-    const res = await fetch("/.netlify/functions/token", {
+    const res = await fetch("/api/token", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ room: rname, name })
