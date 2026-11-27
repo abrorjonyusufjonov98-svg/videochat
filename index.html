@@ -683,10 +683,10 @@
     <button id="expandBtn" class="icon-top-btn" type="button" title="Kattalashtirish">⤢</button>
 
     <div id="menuDropdown">
-      <button id="menuRecBtn" class="menu-item" type="button">⏺️ Darsni yozishni boshlash</button>
-      <button id="menuScreenRecBtn" class="menu-item" type="button">🖥️ Ekran yozishni to‘xtatish / boshlash</button>
-      <button id="menuTeacherPanelBtn" class="menu-item" type="button">👑 O‘qituvchi va navbat paneli</button>
-      <div class="menu-divider"></div>
+      <button id="menuRecBtn" class="menu-item staff-only" type="button">⏺️ Darsni yozishni boshlash</button>
+      <button id="menuScreenRecBtn" class="menu-item staff-only" type="button">🖥️ Ekran yozishni to‘xtatish / boshlash</button>
+      <button id="menuTeacherPanelBtn" class="menu-item staff-only" type="button">👑 O‘qituvchi va navbat paneli</button>
+      <div class="menu-divider staff-only"></div>
       <button id="menuCopyBtn" class="menu-item" type="button">🔗 Telegram taklif silka</button>
       <button id="menuCopyWebBtn" class="menu-item" type="button">💻 Kompyuterdan kirish linki</button>
       <button id="menuShareGroupBtn" class="menu-item" type="button">📢 Guruh/kanalga yuborish matni</button>
@@ -702,7 +702,7 @@
 
   <div id="teacherPanel">
     <div class="teacher-panel-head">
-      <span>👑 O‘qituvchi (Owner) boshqaruvi</span>
+      <span>👑 O‘qituvchi / Admin boshqaruvi</span>
       <span id="queueSummary" style="color:var(--muted);font-size:12px;">Navbat: 0</span>
     </div>
     <div class="teacher-actions">
@@ -765,7 +765,7 @@
 <script>
 const BOT_USERNAME = "darsvideochati_bot";
 const ADMIN_CHAT_ID = "9152309447";
-// Faqat shu 2 ta Telegram ID har doim O'qituvchi / Owner sifatida kiradi:
+// Faqat shu 2 ta Telegram ID har doim Owner sifatida kiradi:
 const ALLOWED_OWNER_IDS = ["9152309447", "8259169140"];
 
 const tg = window.Telegram && window.Telegram.WebApp ? window.Telegram.WebApp : null;
@@ -783,7 +783,7 @@ const tgUserId = user && user.id != null ? String(user.id) : "";
 const isWhitelistedOwner = ALLOWED_OWNER_IDS.includes(tgUserId);
 
 $("roleHintBox").textContent = isWhitelistedOwner
-  ? "👑 Holat: O‘qituvchi / Owner"
+  ? "👑 Holat: Owner"
   : "🎓 Holat: O‘quvchi";
 
 if (user && user.first_name) {
@@ -850,6 +850,7 @@ let screenEnabled = false;
 let currentRoomName = "";
 
 const ownerIdentities = new Set();
+const adminsSet = new Set();
 const speakAllowedMap = new Map();
 let handQueue = [];
 let myHandRaised = false;
@@ -884,6 +885,11 @@ function isOwnerIdentity(identity) {
   return ALLOWED_OWNER_IDS.some((id) => identity === id || identity.startsWith(id + "_"));
 }
 
+function isAdminIdentity(identity) {
+  if (!identity) return false;
+  return isOwnerIdentity(identity) || adminsSet.has(identity);
+}
+
 function getLocalId() {
   return room && room.localParticipant ? room.localParticipant.identity : "";
 }
@@ -891,6 +897,22 @@ function getLocalId() {
 function isLocalOwner() {
   const lid = getLocalId();
   return !!(isWhitelistedOwner || (lid && isOwnerIdentity(lid)));
+}
+
+function isLocalStaff() {
+  const lid = getLocalId();
+  return !!(isLocalOwner() || (lid && isAdminIdentity(lid)));
+}
+
+function applyStaffVisibility() {
+  const hasStaffAccess = isLocalStaff();
+  document.querySelectorAll(".staff-only").forEach((el) => {
+    el.style.display = hasStaffAccess ? "" : "none";
+  });
+  if (!hasStaffAccess) {
+    panelForceOpen = false;
+  }
+  refreshTeacherPanel();
 }
 
 function getInitials(fullName) {
@@ -914,6 +936,7 @@ function broadcastState(extra = {}) {
   const payload = {
     type: "ROOM_SYNC",
     owners: Array.from(ownerIdentities),
+    admins: Array.from(adminsSet),
     speakAllowed: Array.from(speakAllowedMap.entries()).filter(([, v]) => v).map(([k]) => k),
     queue: handQueue.slice(),
     ...extra
@@ -926,7 +949,7 @@ function broadcastState(extra = {}) {
 }
 
 function refreshTeacherPanel() {
-  const canManage = isLocalOwner();
+  const canManage = isLocalStaff();
   $("teacherPanel").classList.toggle("visible", canManage && panelForceOpen);
   $("queueSummary").textContent = "Navbat: " + handQueue.length;
 }
@@ -935,6 +958,7 @@ function refreshAllBadges() {
   document.querySelectorAll(".tile").forEach((tile) => {
     const pid = tile.id.replace(/^t-/, "");
     const isOwnerTile = isOwnerIdentity(pid);
+    const isAdminTile = !isOwnerTile && adminsSet.has(pid);
     const canSpeakTile = !!speakAllowedMap.get(pid);
     const qIdx = handQueue.indexOf(pid);
     const raised = qIdx !== -1;
@@ -944,7 +968,8 @@ function refreshAllBadges() {
     const badgeWrap = tile.querySelector(".badge-slot");
     if (badgeWrap) {
       let html = "";
-      if (isOwnerTile) html += '<span class="owner-badge">👑 O‘qituvchi (Owner)</span>';
+      if (isOwnerTile) html += '<span class="owner-badge">👑 Owner</span>';
+      else if (isAdminTile) html += '<span class="role-badge">🛡️ Admin</span>';
       else html += '<span class="role-badge">O‘quvchi</span>';
       if (canSpeakTile && !isOwnerTile) html += '<span class="role-badge">🎤 Ruxsat</span>';
       if (raised) html += '<span class="hand-badge">✋ #' + (qIdx + 1) + '</span>';
@@ -960,29 +985,33 @@ function openProfileSheet(pid) {
   const displayName = tile.querySelector(".tile-name")?.textContent || pid;
   const localId = getLocalId();
   const amOwner = isLocalOwner();
+  const amStaff = isLocalStaff();
   const isTargetOwner = isOwnerIdentity(pid);
+  const isTargetAdmin = adminsSet.has(pid);
   const isTargetSpeakAllowed = !!speakAllowedMap.get(pid);
 
   activeSheetPid = pid;
   $("sheetUserName").textContent = displayName;
-  $("sheetUserRole").textContent =
-    (isTargetOwner ? "👑 O‘qituvchi (Owner)" : "🎓 O‘quvchi") +
-    (pid === localId ? " (Siz)" : "");
+
+  let roleLabel = "🎓 O‘quvchi";
+  if (isTargetOwner) roleLabel = "👑 Owner";
+  else if (isTargetAdmin) roleLabel = "🛡️ Admin";
+  $("sheetUserRole").textContent = roleLabel + (pid === localId ? " (Siz)" : "");
 
   const container = $("sheetActionsContainer");
   container.innerHTML = "";
 
-  if (!amOwner) {
+  if (!amStaff) {
     const info = document.createElement("div");
     info.style.color = "var(--muted)";
     info.style.fontSize = "13px";
-    info.textContent = "Boshqaruv amallari faqat O‘qituvchi (Owner) uchun ochiq.";
+    info.textContent = "Boshqaruv amallari faqat Owner va Adminlar uchun ochiq.";
     container.appendChild(info);
     $("profileSheetBackdrop").classList.add("open");
     return;
   }
 
-  // Gapirishga ruxsat berish / ruxsatni olish
+  // 1. Gapirishga ruxsat berish / ruxsatni olish
   const speakBtn = document.createElement("button");
   speakBtn.type = "button";
   speakBtn.className = "sheet-action-btn allow-speak";
@@ -1017,7 +1046,38 @@ function openProfileSheet(pid) {
   };
   container.appendChild(speakBtn);
 
-  // Xonadan chiqarib yuborish (faqat boshqa o'quvchi/ishtirokchi uchun)
+  // 2. Admin tayinlash / olish (faqat Owner boshqara oladi)
+  if (amOwner && !isTargetOwner && pid !== localId) {
+    const adminBtn = document.createElement("button");
+    adminBtn.type = "button";
+    adminBtn.className = "sheet-action-btn admin-btn";
+    adminBtn.innerHTML = isTargetAdmin
+      ? "<span>🛡️ Adminlikni olish</span><span>−</span>"
+      : "<span>👑 Admin tayinlash</span><span>+</span>";
+    adminBtn.onclick = () => {
+      const nextAdmin = !isTargetAdmin;
+      if (nextAdmin) {
+        adminsSet.add(pid);
+      } else {
+        adminsSet.delete(pid);
+      }
+      refreshAllBadges();
+      refreshTeacherPanel();
+      broadcastState({
+        adminTargetIdentity: pid,
+        grantAdmin: nextAdmin
+      });
+      closeProfileSheet();
+      showTempBanner(
+        nextAdmin
+          ? "👑 Admin tayinlandi: " + displayName
+          : "🛡️ Adminlik olindi: " + displayName
+      );
+    };
+    container.appendChild(adminBtn);
+  }
+
+  // 3. Xonadan chiqarib yuborish
   if (!isTargetOwner && pid !== localId) {
     const kickBtn = document.createElement("button");
     kickBtn.type = "button";
@@ -1029,6 +1089,7 @@ function openProfileSheet(pid) {
       if (t) t.remove();
       handQueue = handQueue.filter((x) => x !== pid);
       speakAllowedMap.delete(pid);
+      adminsSet.delete(pid);
       updateParticipantCount();
       refreshAllBadges();
       refreshTeacherPanel();
@@ -1199,8 +1260,8 @@ $("handBtn").onclick = async () => {
 
 $("menuTeacherPanelBtn").onclick = () => {
   $("menuDropdown").classList.remove("open");
-  if (!isLocalOwner()) {
-    showTempBanner("⚠️ Bu panel faqat O‘qituvchi (Owner) uchun");
+  if (!isLocalStaff()) {
+    showTempBanner("⚠️ Bu panel faqat Owner va Adminlar uchun");
     return;
   }
   panelForceOpen = !panelForceOpen;
@@ -1208,7 +1269,7 @@ $("menuTeacherPanelBtn").onclick = () => {
 };
 
 $("callNextBtn").onclick = async () => {
-  if (!isLocalOwner() || handQueue.length === 0) return;
+  if (!isLocalStaff() || handQueue.length === 0) return;
   const nextId = handQueue.shift();
   const nextTile = document.getElementById("t-" + nextId);
   const nextName = nextTile ? nextTile.querySelector(".tile-name")?.textContent : nextId;
@@ -1224,7 +1285,7 @@ $("callNextBtn").onclick = async () => {
 };
 
 $("clearHandsBtn").onclick = () => {
-  if (!isLocalOwner()) return;
+  if (!isLocalStaff()) return;
   handQueue = [];
   myHandRaised = false;
   $("handBtn").classList.remove("active");
@@ -1251,6 +1312,7 @@ function showTempBanner(text) {
 
 $("menuBtn").onclick = (e) => {
   e.stopPropagation();
+  applyStaffVisibility();
   $("menuDropdown").classList.toggle("open");
 };
 
@@ -1422,6 +1484,7 @@ async function deliverRecordedAudio(blob, fileName, durationStr) {
 }
 
 async function startScreenRecording() {
+  if (!isLocalStaff()) return;
   if (screenRecorder && screenRecorder.state === "recording") return;
   if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
     showTempBanner("⚠️ Brauzer ekran yozishni qo'llab-quvvatlamaydi");
@@ -1529,6 +1592,7 @@ function stopScreenRecording() {
 }
 
 async function startRecording() {
+  if (!isLocalStaff()) return;
   if (!room) {
     showTempBanner("⚠️ Avval xonaga kiring");
     return;
@@ -1631,6 +1695,7 @@ function stopRecording() {
 
 $("menuRecBtn").onclick = async () => {
   $("menuDropdown").classList.remove("open");
+  if (!isLocalStaff()) return;
   if (mediaRecorder && mediaRecorder.state === "recording") {
     stopRecording();
   } else {
@@ -1640,6 +1705,7 @@ $("menuRecBtn").onclick = async () => {
 
 $("menuScreenRecBtn").onclick = async () => {
   $("menuDropdown").classList.remove("open");
+  if (!isLocalStaff()) return;
   if (screenRecorder && screenRecorder.state === "recording") {
     stopScreenRecording();
   } else {
@@ -1707,6 +1773,7 @@ async function joinRoom(autoFromInvite = false) {
     }
 
     ownerIdentities.clear();
+    adminsSet.clear();
     speakAllowedMap.clear();
     handQueue = [];
     myHandRaised = false;
@@ -1727,6 +1794,9 @@ async function joinRoom(autoFromInvite = false) {
             }
           });
 
+          adminsSet.clear();
+          (msg.admins || []).forEach((aid) => adminsSet.add(aid));
+
           speakAllowedMap.clear();
           (msg.speakAllowed || []).forEach((sid) => speakAllowedMap.set(sid, true));
 
@@ -1737,13 +1807,23 @@ async function joinRoom(autoFromInvite = false) {
           $("handBtn").classList.toggle("active", myHandRaised);
           $("handLabel").textContent = myHandRaised ? "Tushirish" : "Qo‘l";
 
+          if (msg.adminTargetIdentity === lid) {
+            if (msg.grantAdmin) {
+              panelForceOpen = true;
+              showTempBanner("🛡️ Sizga Admin huquqi berildi!");
+            } else {
+              panelForceOpen = false;
+              showTempBanner("🎓 Admin huquqingiz olindi");
+            }
+          }
+
           if (msg.speakTargetIdentity === lid && room) {
             if (msg.allowSpeak) {
               micEnabled = true;
               room.localParticipant.setMicrophoneEnabled(true).catch(() => {});
               setTileMicState(lid, false);
               refreshControlButtons();
-              showTempBanner("🎤 O‘qituvchi sizga gapirishga ruxsat berdi!");
+              showTempBanner("🎤 Sizga gapirishga ruxsat berildi!");
             } else {
               micEnabled = false;
               room.localParticipant.setMicrophoneEnabled(false).catch(() => {});
@@ -1759,6 +1839,7 @@ async function joinRoom(autoFromInvite = false) {
             return;
           }
 
+          applyStaffVisibility();
           refreshAllBadges();
           refreshTeacherPanel();
         }
@@ -1803,7 +1884,7 @@ async function joinRoom(autoFromInvite = false) {
     room.on(LivekitClient.RoomEvent.ParticipantConnected, (p) => {
       syncParticipant(p, false);
       updateParticipantCount();
-      if (isLocalOwner()) {
+      if (isLocalStaff()) {
         broadcastState();
       }
     });
@@ -1813,6 +1894,7 @@ async function joinRoom(autoFromInvite = false) {
       if (t) t.remove();
       handQueue = handQueue.filter((x) => x !== p.identity);
       speakAllowedMap.delete(p.identity);
+      adminsSet.delete(p.identity);
       updateParticipantCount();
       refreshAllBadges();
       refreshTeacherPanel();
@@ -1841,6 +1923,7 @@ async function joinRoom(autoFromInvite = false) {
     syncParticipant(room.localParticipant, true);
     room.remoteParticipants.forEach((p) => syncParticipant(p, false));
     updateParticipantCount();
+    applyStaffVisibility();
     refreshAllBadges();
     refreshTeacherPanel();
     refreshControlButtons();
@@ -1863,7 +1946,6 @@ async function joinRoom(autoFromInvite = false) {
 
 $("joinBtn").onclick = () => joinRoom(false);
 
-// Havola orqali kirganda xona nomini qo'lda termasdan darhol chatga ulanish
 if (invitedRoom) {
   joinRoom(true);
 }
@@ -1907,7 +1989,7 @@ $("screenBtn").onclick = async () => {
     screenEnabled = nextState;
     refreshControlButtons();
 
-    if (screenEnabled) {
+    if (screenEnabled && isLocalStaff()) {
       await startScreenRecording();
     } else {
       stopScreenRecording();
@@ -1948,7 +2030,10 @@ function leave() {
   myHandRaised = false;
   handQueue = [];
   ownerIdentities.clear();
+  adminsSet.clear();
   speakAllowedMap.clear();
+  panelForceOpen = false;
+  applyStaffVisibility();
   $("handBtn").classList.remove("active");
   $("handLabel").textContent = "Qo‘l";
   $("teacherPanel").classList.remove("visible");
