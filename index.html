@@ -83,26 +83,15 @@
     color: var(--muted);
   }
 
-  .role-row {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 8px;
-  }
-
-  .role-btn {
-    padding: 10px;
+  .role-badge-box {
+    padding: 10px 12px;
     border-radius: 10px;
     background: var(--bg);
-    color: var(--muted);
     border: 1px solid rgba(255, 255, 255, 0.08);
     font-size: 13px;
     font-weight: 600;
-  }
-
-  .role-btn.active {
-    background: #2b5278;
-    color: #fff;
-    border-color: var(--accent);
+    text-align: center;
+    color: #b7dfff;
   }
 
   button {
@@ -335,10 +324,6 @@
     background: var(--card-hover);
   }
 
-  .mini-btn.primary {
-    background: #2b5278;
-  }
-
   #grid {
     flex: 1;
     display: flex;
@@ -524,7 +509,6 @@
     color: var(--accent);
   }
 
-  /* Profil ustiga bosilganda chiqadigan qulay boshqaruv oynasi */
   #profileSheetBackdrop {
     display: none;
     position: fixed;
@@ -684,10 +668,7 @@
   <h2>Videochat</h2>
   <input id="name" placeholder="Ism va familiyangiz">
   <input id="room" placeholder="Dars / xona nomi">
-  <div class="role-row">
-    <button type="button" class="role-btn active" data-role="teacher">👑 Owner / Ustoz</button>
-    <button type="button" class="role-btn" data-role="student">🎓 O‘quvchi</button>
-  </div>
+  <div class="role-badge-box" id="roleHintBox">🎓 Holat: O‘quvchi</div>
   <button id="joinBtn">Kirish</button>
   <small id="status"></small>
 </div>
@@ -704,7 +685,7 @@
     <div id="menuDropdown">
       <button id="menuRecBtn" class="menu-item" type="button">⏺️ Darsni yozishni boshlash</button>
       <button id="menuScreenRecBtn" class="menu-item" type="button">🖥️ Ekran yozishni to‘xtatish / boshlash</button>
-      <button id="menuTeacherPanelBtn" class="menu-item" type="button">👑 Owner va navbat paneli</button>
+      <button id="menuTeacherPanelBtn" class="menu-item" type="button">👑 O‘qituvchi va navbat paneli</button>
       <div class="menu-divider"></div>
       <button id="menuCopyBtn" class="menu-item" type="button">🔗 Telegram taklif silka</button>
       <button id="menuCopyWebBtn" class="menu-item" type="button">💻 Kompyuterdan kirish linki</button>
@@ -721,11 +702,10 @@
 
   <div id="teacherPanel">
     <div class="teacher-panel-head">
-      <span>👑 Owner va admin boshqaruvi</span>
+      <span>👑 O‘qituvchi (Owner) boshqaruvi</span>
       <span id="queueSummary" style="color:var(--muted);font-size:12px;">Navbat: 0</span>
     </div>
     <div class="teacher-actions">
-      <button id="claimTeacherBtn" class="mini-btn primary" type="button">👑 Meni Owner qil</button>
       <button id="callNextBtn" class="mini-btn" type="button">🎤 Navbatdagiga gapirish ruxsati</button>
       <button id="clearHandsBtn" class="mini-btn" type="button">🧹 Qo‘llarni tushirish</button>
     </div>
@@ -769,7 +749,6 @@
   </div>
 </div>
 
-<!-- Profil egasi ustiga bosilganda ochiladigan menyu -->
 <div id="profileSheetBackdrop">
   <div id="profileSheet" onclick="event.stopPropagation()">
     <div class="profile-sheet-top">
@@ -786,7 +765,8 @@
 <script>
 const BOT_USERNAME = "darsvideochati_bot";
 const ADMIN_CHAT_ID = "9152309447";
-const OWNER_CHAT_ID = "9152309447";
+// Faqat shu 2 ta Telegram ID har doim O'qituvchi / Owner sifatida kiradi:
+const ALLOWED_OWNER_IDS = ["9152309447", "8259169140"];
 
 const tg = window.Telegram && window.Telegram.WebApp ? window.Telegram.WebApp : null;
 if (tg) {
@@ -797,6 +777,21 @@ if (tg) {
 const $ = (id) => document.getElementById(id);
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
+
+const user = tg && tg.initDataUnsafe ? tg.initDataUnsafe.user : null;
+const tgUserId = user && user.id != null ? String(user.id) : "";
+const isWhitelistedOwner = ALLOWED_OWNER_IDS.includes(tgUserId);
+
+$("roleHintBox").textContent = isWhitelistedOwner
+  ? "👑 Holat: O‘qituvchi / Owner"
+  : "🎓 Holat: O‘quvchi";
+
+if (user && user.first_name) {
+  const full = [user.first_name, user.last_name].filter(Boolean).join(" ").trim();
+  if (full && full !== ".") {
+    $("name").value = full;
+  }
+}
 
 // Har bir tugma bosilganda chiqadigan ovoz (Web Audio API)
 let uiSoundCtx = null;
@@ -830,23 +825,6 @@ document.addEventListener("click", (e) => {
   }
 }, true);
 
-const user = tg && tg.initDataUnsafe ? tg.initDataUnsafe.user : null;
-if (user && user.first_name) {
-  const full = [user.first_name, user.last_name].filter(Boolean).join(" ").trim();
-  if (full && full !== ".") {
-    $("name").value = full;
-  }
-}
-
-let selectedInitialRole = "teacher";
-document.querySelectorAll(".role-btn").forEach((btn) => {
-  btn.onclick = () => {
-    document.querySelectorAll(".role-btn").forEach((b) => b.classList.remove("active"));
-    btn.classList.add("active");
-    selectedInitialRole = btn.dataset.role || "student";
-  };
-});
-
 function getInviteRoomFromUrl() {
   const params = new URLSearchParams(window.location.search);
   const fromQuery = params.get("room") || params.get("tgWebAppStartParam");
@@ -871,8 +849,7 @@ let camEnabled = false;
 let screenEnabled = false;
 let currentRoomName = "";
 
-let ownerIdentity = "";
-const teachersMap = new Map();
+const ownerIdentities = new Set();
 const speakAllowedMap = new Map();
 let handQueue = [];
 let myHandRaised = false;
@@ -901,21 +878,19 @@ const SVG_MIC_OFF = '<path d="M19 11h-1.7c0 .74-.16 1.43-.43 2.05l1.23 1.23c.56-
 const SVG_CAM_ON = '<path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"/>';
 const SVG_CAM_OFF = '<path d="M21 6.5l-4 4V7c0-.55-.45-1-1-1H9.82L21 17.18V6.5zM3.27 2L2 3.27 4.73 6H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.21 0 .39-.08.54-.18L19.73 21 21 19.73 3.27 2z"/>';
 
+function isOwnerIdentity(identity) {
+  if (!identity) return false;
+  if (ownerIdentities.has(identity)) return true;
+  return ALLOWED_OWNER_IDS.some((id) => identity === id || identity.startsWith(id + "_"));
+}
+
 function getLocalId() {
   return room && room.localParticipant ? room.localParticipant.identity : "";
 }
 
 function isLocalOwner() {
   const lid = getLocalId();
-  if (!lid) return false;
-  if (ownerIdentity && ownerIdentity === lid) return true;
-  if (user && String(user.id) === OWNER_CHAT_ID && selectedInitialRole === "teacher") return true;
-  return false;
-}
-
-function isLocalAdmin() {
-  const lid = getLocalId();
-  return !!(lid && (isLocalOwner() || teachersMap.get(lid)));
+  return !!(isWhitelistedOwner || (lid && isOwnerIdentity(lid)));
 }
 
 function getInitials(fullName) {
@@ -938,8 +913,7 @@ function broadcastState(extra = {}) {
   if (!room || !room.localParticipant) return;
   const payload = {
     type: "ROOM_SYNC",
-    owner: ownerIdentity,
-    teachers: Array.from(teachersMap.entries()).filter(([, v]) => v).map(([k]) => k),
+    owners: Array.from(ownerIdentities),
     speakAllowed: Array.from(speakAllowedMap.entries()).filter(([, v]) => v).map(([k]) => k),
     queue: handQueue.slice(),
     ...extra
@@ -952,19 +926,15 @@ function broadcastState(extra = {}) {
 }
 
 function refreshTeacherPanel() {
-  const canManage = isLocalAdmin();
-  $("teacherPanel").classList.toggle("visible", canManage || panelForceOpen);
+  const canManage = isLocalOwner();
+  $("teacherPanel").classList.toggle("visible", canManage && panelForceOpen);
   $("queueSummary").textContent = "Navbat: " + handQueue.length;
-  $("claimTeacherBtn").textContent = isLocalOwner()
-    ? "👑 Siz Owner’siz"
-    : (canManage ? "👑 Admin rejimidasiz" : "👑 Meni Owner qil");
 }
 
 function refreshAllBadges() {
   document.querySelectorAll(".tile").forEach((tile) => {
     const pid = tile.id.replace(/^t-/, "");
-    const isOwnerTile = !!(ownerIdentity && ownerIdentity === pid);
-    const isAdminTile = !!teachersMap.get(pid);
+    const isOwnerTile = isOwnerIdentity(pid);
     const canSpeakTile = !!speakAllowedMap.get(pid);
     const qIdx = handQueue.indexOf(pid);
     const raised = qIdx !== -1;
@@ -974,9 +944,9 @@ function refreshAllBadges() {
     const badgeWrap = tile.querySelector(".badge-slot");
     if (badgeWrap) {
       let html = "";
-      if (isOwnerTile) html += '<span class="owner-badge">👑 Owner</span>';
-      else if (isAdminTile) html += '<span class="role-badge">Admin</span>';
-      if (canSpeakTile) html += '<span class="role-badge">🎤 Ruxsat</span>';
+      if (isOwnerTile) html += '<span class="owner-badge">👑 O‘qituvchi (Owner)</span>';
+      else html += '<span class="role-badge">O‘quvchi</span>';
+      if (canSpeakTile && !isOwnerTile) html += '<span class="role-badge">🎤 Ruxsat</span>';
       if (raised) html += '<span class="hand-badge">✋ #' + (qIdx + 1) + '</span>';
       badgeWrap.innerHTML = html;
     }
@@ -990,34 +960,29 @@ function openProfileSheet(pid) {
   const displayName = tile.querySelector(".tile-name")?.textContent || pid;
   const localId = getLocalId();
   const amOwner = isLocalOwner();
-  const amAdmin = isLocalAdmin();
-  const isTargetOwner = !!(ownerIdentity && ownerIdentity === pid);
-  const isTargetAdmin = !!teachersMap.get(pid);
+  const isTargetOwner = isOwnerIdentity(pid);
   const isTargetSpeakAllowed = !!speakAllowedMap.get(pid);
 
   activeSheetPid = pid;
   $("sheetUserName").textContent = displayName;
-
-  let roleText = "Ishtirokchi";
-  if (isTargetOwner) roleText = "👑 Owner";
-  else if (isTargetAdmin) roleText = "🛡️ Admin";
-  else if (isTargetSpeakAllowed) roleText = "🎤 Gapirishga ruxsat berilgan";
-  $("sheetUserRole").textContent = roleText + (pid === localId ? " (Siz)" : "");
+  $("sheetUserRole").textContent =
+    (isTargetOwner ? "👑 O‘qituvchi (Owner)" : "🎓 O‘quvchi") +
+    (pid === localId ? " (Siz)" : "");
 
   const container = $("sheetActionsContainer");
   container.innerHTML = "";
 
-  if (!amAdmin) {
+  if (!amOwner) {
     const info = document.createElement("div");
     info.style.color = "var(--muted)";
     info.style.fontSize = "13px";
-    info.textContent = "Boshqaruv amallari faqat Owner va Adminlar uchun ochiq.";
+    info.textContent = "Boshqaruv amallari faqat O‘qituvchi (Owner) uchun ochiq.";
     container.appendChild(info);
     $("profileSheetBackdrop").classList.add("open");
     return;
   }
 
-  // 1. Gapirishga ruxsat berish / ruxsatni olish
+  // Gapirishga ruxsat berish / ruxsatni olish
   const speakBtn = document.createElement("button");
   speakBtn.type = "button";
   speakBtn.className = "sheet-action-btn allow-speak";
@@ -1052,31 +1017,7 @@ function openProfileSheet(pid) {
   };
   container.appendChild(speakBtn);
 
-  // 2. Admin tayinlash / olish (Owner yoki Admin boshqara oladi)
-  if (!isTargetOwner && pid !== localId) {
-    const adminBtn = document.createElement("button");
-    adminBtn.type = "button";
-    adminBtn.className = "sheet-action-btn admin-btn";
-    adminBtn.innerHTML = isTargetAdmin
-      ? "<span>🛡️ Adminlikni olish</span><span>−</span>"
-      : "<span>👑 Admin tayinlash</span><span>+</span>";
-    adminBtn.onclick = () => {
-      const nextAdmin = !isTargetAdmin;
-      teachersMap.set(pid, nextAdmin);
-      refreshAllBadges();
-      refreshTeacherPanel();
-      broadcastState();
-      closeProfileSheet();
-      showTempBanner(
-        nextAdmin
-          ? "👑 Admin tayinlandi: " + displayName
-          : "🛡️ Adminlik olindi: " + displayName
-      );
-    };
-    container.appendChild(adminBtn);
-  }
-
-  // 3. Xonadan chiqarib yuborish
+  // Xonadan chiqarib yuborish (faqat boshqa o'quvchi/ishtirokchi uchun)
   if (!isTargetOwner && pid !== localId) {
     const kickBtn = document.createElement("button");
     kickBtn.type = "button";
@@ -1088,7 +1029,6 @@ function openProfileSheet(pid) {
       if (t) t.remove();
       handQueue = handQueue.filter((x) => x !== pid);
       speakAllowedMap.delete(pid);
-      teachersMap.delete(pid);
       updateParticipantCount();
       refreshAllBadges();
       refreshTeacherPanel();
@@ -1259,27 +1199,16 @@ $("handBtn").onclick = async () => {
 
 $("menuTeacherPanelBtn").onclick = () => {
   $("menuDropdown").classList.remove("open");
+  if (!isLocalOwner()) {
+    showTempBanner("⚠️ Bu panel faqat O‘qituvchi (Owner) uchun");
+    return;
+  }
   panelForceOpen = !panelForceOpen;
   refreshTeacherPanel();
 };
 
-$("claimTeacherBtn").onclick = () => {
-  const lid = getLocalId();
-  if (!lid) return;
-  if (!ownerIdentity) {
-    ownerIdentity = lid;
-  }
-  teachersMap.set(lid, true);
-  speakAllowedMap.set(lid, true);
-  panelForceOpen = true;
-  refreshAllBadges();
-  refreshTeacherPanel();
-  broadcastState();
-  showTempBanner("👑 Siz Owner sifatida belgilandingiz");
-};
-
 $("callNextBtn").onclick = async () => {
-  if (!isLocalAdmin() || handQueue.length === 0) return;
+  if (!isLocalOwner() || handQueue.length === 0) return;
   const nextId = handQueue.shift();
   const nextTile = document.getElementById("t-" + nextId);
   const nextName = nextTile ? nextTile.querySelector(".tile-name")?.textContent : nextId;
@@ -1295,7 +1224,7 @@ $("callNextBtn").onclick = async () => {
 };
 
 $("clearHandsBtn").onclick = () => {
-  if (!isLocalAdmin()) return;
+  if (!isLocalOwner()) return;
   handQueue = [];
   myHandRaised = false;
   $("handBtn").classList.remove("active");
@@ -1729,22 +1658,37 @@ function refreshControlButtons() {
   $("screenBtn").classList.toggle("active", screenEnabled);
 }
 
-async function joinRoom() {
-  const name = $("name").value.trim();
+async function joinRoom(autoFromInvite = false) {
+  let name = $("name").value.trim();
+  if (!name || name === ".") {
+    if (autoFromInvite) {
+      name = tgUserId ? ("O‘quvchi " + tgUserId.slice(-4)) : ("O‘quvchi " + Math.floor(1000 + Math.random() * 9000));
+      $("name").value = name;
+    } else {
+      $("status").textContent = "Ism-familiyangizni kiriting";
+      return;
+    }
+  }
+
   const rname = $("room").value.trim();
-  if (!name || name === "." || !rname) {
-    $("status").textContent = "Ism-familiya va xona nomini kiriting";
+  if (!rname) {
+    $("status").textContent = "Dars / xona nomini kiriting";
     return;
   }
 
-  $("status").textContent = "Ulanmoqda...";
+  $("status").textContent = "Xonaga ulanilmoqda...";
   $("joinBtn").disabled = true;
 
   try {
     const res = await fetch("/api/token", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ room: rname, name, role: selectedInitialRole })
+      body: JSON.stringify({
+        room: rname,
+        name,
+        role: isWhitelistedOwner ? "teacher" : "student",
+        tgUserId
+      })
     });
 
     let data;
@@ -1762,12 +1706,11 @@ async function joinRoom() {
       throw new Error("Server noto'g'ri LiveKit manzili yoki token qaytardi");
     }
 
-    ownerIdentity = "";
-    teachersMap.clear();
+    ownerIdentities.clear();
     speakAllowedMap.clear();
     handQueue = [];
     myHandRaised = false;
-    panelForceOpen = selectedInitialRole === "teacher";
+    panelForceOpen = isWhitelistedOwner;
 
     room = new LivekitClient.Room({
       adaptiveStream: true,
@@ -1778,10 +1721,11 @@ async function joinRoom() {
       try {
         const msg = JSON.parse(decoder.decode(payload));
         if (msg && msg.type === "ROOM_SYNC") {
-          if (msg.owner) ownerIdentity = msg.owner;
-
-          teachersMap.clear();
-          (msg.teachers || []).forEach((tid) => teachersMap.set(tid, true));
+          (msg.owners || []).forEach((oid) => {
+            if (ALLOWED_OWNER_IDS.some((id) => oid === id || oid.startsWith(id + "_"))) {
+              ownerIdentities.add(oid);
+            }
+          });
 
           speakAllowedMap.clear();
           (msg.speakAllowed || []).forEach((sid) => speakAllowedMap.set(sid, true));
@@ -1799,7 +1743,7 @@ async function joinRoom() {
               room.localParticipant.setMicrophoneEnabled(true).catch(() => {});
               setTileMicState(lid, false);
               refreshControlButtons();
-              showTempBanner("🎤 Owner / Admin sizga gapirishga ruxsat berdi!");
+              showTempBanner("🎤 O‘qituvchi sizga gapirishga ruxsat berdi!");
             } else {
               micEnabled = false;
               room.localParticipant.setMicrophoneEnabled(false).catch(() => {});
@@ -1859,7 +1803,7 @@ async function joinRoom() {
     room.on(LivekitClient.RoomEvent.ParticipantConnected, (p) => {
       syncParticipant(p, false);
       updateParticipantCount();
-      if (isLocalAdmin()) {
+      if (isLocalOwner()) {
         broadcastState();
       }
     });
@@ -1869,7 +1813,6 @@ async function joinRoom() {
       if (t) t.remove();
       handQueue = handQueue.filter((x) => x !== p.identity);
       speakAllowedMap.delete(p.identity);
-      teachersMap.delete(p.identity);
       updateParticipantCount();
       refreshAllBadges();
       refreshTeacherPanel();
@@ -1880,9 +1823,8 @@ async function joinRoom() {
     await room.connect(url, token);
 
     const localId = room.localParticipant.identity;
-    if (selectedInitialRole === "teacher") {
-      if (!ownerIdentity) ownerIdentity = localId;
-      teachersMap.set(localId, true);
+    if (isWhitelistedOwner || isOwnerIdentity(localId)) {
+      ownerIdentities.add(localId);
       speakAllowedMap.set(localId, true);
     }
 
@@ -1919,10 +1861,11 @@ async function joinRoom() {
   }
 }
 
-$("joinBtn").onclick = joinRoom;
+$("joinBtn").onclick = () => joinRoom(false);
 
-if (invitedRoom && $("name").value.trim() && $("name").value.trim() !== ".") {
-  joinRoom();
+// Havola orqali kirganda xona nomini qo'lda termasdan darhol chatga ulanish
+if (invitedRoom) {
+  joinRoom(true);
 }
 
 $("micBtn").onclick = async () => {
@@ -2004,8 +1947,7 @@ function leave() {
   camEnabled = false;
   myHandRaised = false;
   handQueue = [];
-  ownerIdentity = "";
-  teachersMap.clear();
+  ownerIdentities.clear();
   speakAllowedMap.clear();
   $("handBtn").classList.remove("active");
   $("handLabel").textContent = "Qo‘l";
