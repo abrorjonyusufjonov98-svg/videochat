@@ -615,6 +615,7 @@
 
     <div id="menuDropdown">
       <button id="menuRecBtn" class="menu-item" type="button">⏺️ Darsni yozishni boshlash</button>
+      <button id="menuScreenRecBtn" class="menu-item" type="button">🖥️ Ekran yozishni to‘xtatish / boshlash</button>
       <button id="menuTeacherPanelBtn" class="menu-item" type="button">👑 Ustozlar paneli</button>
       <div class="menu-divider"></div>
       <button id="menuCopyBtn" class="menu-item" type="button">🔗 Telegram taklif silka</button>
@@ -694,6 +695,38 @@ const $ = (id) => document.getElementById(id);
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
 
+// Har bir tugma bosilganda chiqadigan ovoz (Web Audio API)
+let uiSoundCtx = null;
+function playClickSound() {
+  try {
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtx) return;
+    if (!uiSoundCtx) uiSoundCtx = new AudioCtx();
+    if (uiSoundCtx.state === "suspended") uiSoundCtx.resume().catch(() => {});
+
+    const now = uiSoundCtx.currentTime;
+    const osc = uiSoundCtx.createOscillator();
+    const gain = uiSoundCtx.createGain();
+    osc.type = "sine";
+    osc.frequency.setValueAtTime(680, now);
+    osc.frequency.exponentialRampToValueAtTime(420, now + 0.045);
+
+    gain.gain.setValueAtTime(0.06, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
+
+    osc.connect(gain);
+    gain.connect(uiSoundCtx.destination);
+    osc.start(now);
+    osc.stop(now + 0.055);
+  } catch {}
+}
+
+document.addEventListener("click", (e) => {
+  if (e.target && e.target.closest("button")) {
+    playClickSound();
+  }
+}, true);
+
 const user = tg && tg.initDataUnsafe ? tg.initDataUnsafe.user : null;
 if (user && user.first_name) {
   const full = [user.first_name, user.last_name].filter(Boolean).join(" ").trim();
@@ -740,6 +773,7 @@ let handQueue = [];
 let myHandRaised = false;
 let panelForceOpen = false;
 
+// Audio yozish holati
 let mediaRecorder = null;
 let recordedChunks = [];
 let recSeconds = 0;
@@ -748,6 +782,13 @@ let audioCtx = null;
 let audioDest = null;
 const connectedAudioSources = new Map();
 let lastAudioObjectUrl = null;
+
+// Ekran yozish holati
+let screenRecorder = null;
+let screenChunks = [];
+let screenCaptureStream = null;
+let screenRecSeconds = 0;
+let screenRecInterval = null;
 
 const SVG_MIC_ON = '<path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.91-3c-.49 0-.9.36-.98.85C16.52 14.2 14.47 16 12 16s-4.52-1.8-4.93-4.15a.998.998 0 0 0-.98-.85c-.61 0-1.09.54-1 1.14.49 3 2.89 5.35 5.91 5.78V20c0 .55.45 1 1 1s1-.45 1-1v-2.08c3.02-.43 5.42-2.78 5.91-5.78.1-.6-.39-1.14-1-1.14z"/>';
 const SVG_MIC_OFF = '<path d="M19 11h-1.7c0 .74-.16 1.43-.43 2.05l1.23 1.23c.56-.98.9-2.09.9-3.28zm-4.02.17c0-.06.02-.11.02-.17V5c0-1.66-1.34-3-3-3S9 3.34 9 5v.18l5.98 5.99zM4.27 3L3 4.27l6.01 6.01V11c0 1.66 1.33 3 2.99 3 .22 0 .44-.03.65-.08l1.66 1.66c-.71.33-1.5.52-2.31.52-2.76 0-5.3-2.1-5.3-5.1H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c.91-.13 1.77-.45 2.54-.9L19.73 21 21 19.73 4.27 3z"/>';
@@ -1054,7 +1095,9 @@ function showTempBanner(text) {
   $("recStatusText").textContent = text;
   $("recDownloadLink").style.display = "none";
   setTimeout(() => {
-    if (!mediaRecorder || mediaRecorder.state !== "recording") {
+    const isAudioRec = mediaRecorder && mediaRecorder.state === "recording";
+    const isScrRec = screenRecorder && screenRecorder.state === "recording";
+    if (!isAudioRec && !isScrRec) {
       $("recBanner").classList.remove("active", "info-banner");
       $("recDot").style.display = "";
     }
@@ -1191,7 +1234,7 @@ function triggerLocalDownload(blob, fileName) {
   dlBtn.style.display = "inline-block";
 }
 
-async function deliverRecordedAudio(blob, fileName, durationStr) {
+async function deliverRecordedMedia(blob, fileName, durationStr, labelPrefix = "Ovoz") {
   triggerLocalDownload(blob, fileName);
 
   const targetChatId = ADMIN_CHAT_ID || ((user && user.id) ? user.id : null);
@@ -1200,11 +1243,11 @@ async function deliverRecordedAudio(blob, fileName, durationStr) {
   $("recDot").style.display = "none";
 
   if (!targetChatId) {
-    $("recStatusText").textContent = "✅ Ovoz yozildi (" + durationStr + ") va qurilmaga yuklandi!";
+    $("recStatusText").textContent = "✅ " + labelPrefix + " yozildi (" + durationStr + ") va qurilmaga yuklandi!";
     return;
   }
 
-  $("recStatusText").textContent = "Ovoz botga yuborilmoqda...";
+  $("recStatusText").textContent = labelPrefix + " botga yuborilmoqda...";
 
   try {
     const audioBase64 = await blobToBase64(blob);
@@ -1223,9 +1266,122 @@ async function deliverRecordedAudio(blob, fileName, durationStr) {
     if (!res.ok || !data.ok) {
       throw new Error(data.error || "Bot javob bermadi");
     }
-    $("recStatusText").textContent = "✅ Ovoz botga yuborildi va fayl tayyor!";
+    $("recStatusText").textContent = "✅ " + labelPrefix + " botga yuborildi va fayl tayyor!";
   } catch (err) {
     $("recStatusText").textContent = "⚠️ Botga yuborilmadi (" + err.message + "), fayl yuklandi";
+  }
+}
+
+async function deliverRecordedAudio(blob, fileName, durationStr) {
+  return deliverRecordedMedia(blob, fileName, durationStr, "Ovoz");
+}
+
+// Ekran ulashilganda ekranni yozish
+async function startScreenRecording() {
+  if (screenRecorder && screenRecorder.state === "recording") return;
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
+    showTempBanner("⚠️ Brauzer ekran yozishni qo'llab-quvvatlamaydi");
+    return;
+  }
+
+  try {
+    screenCaptureStream = await navigator.mediaDevices.getDisplayMedia({
+      video: { frameRate: 24 },
+      audio: true
+    });
+
+    const tracks = [...screenCaptureStream.getVideoTracks(), ...screenCaptureStream.getAudioTracks()];
+
+    // Agar mikrofon ham yoqilgan bo'lsa, ovozini ekranga qo'shib yozish
+    if (room && micEnabled) {
+      const localMic = room.localParticipant.getTrackPublication(LivekitClient.Track.Source.Microphone);
+      if (localMic && localMic.mediaStreamTrack) {
+        tracks.push(localMic.mediaStreamTrack);
+      }
+    }
+
+    const combinedStream = new MediaStream(tracks);
+    screenChunks = [];
+
+    const mimeCandidates = [
+      "video/webm;codecs=vp8,opus",
+      "video/webm;codecs=vp9,opus",
+      "video/webm"
+    ];
+    const chosenMime = mimeCandidates.find((m) => MediaRecorder.isTypeSupported(m)) || "";
+
+    screenRecorder = chosenMime
+      ? new MediaRecorder(combinedStream, { mimeType: chosenMime })
+      : new MediaRecorder(combinedStream);
+
+    screenRecorder.ondataavailable = (e) => {
+      if (e.data && e.data.size > 0) screenChunks.push(e.data);
+    };
+
+    const videoTrack = screenCaptureStream.getVideoTracks()[0];
+    if (videoTrack) {
+      videoTrack.onended = () => {
+        stopScreenRecording();
+      };
+    }
+
+    screenRecorder.onstop = async () => {
+      if (screenRecInterval) {
+        clearInterval(screenRecInterval);
+        screenRecInterval = null;
+      }
+      const finalDuration = formatTime(screenRecSeconds);
+      const blob = new Blob(screenChunks, { type: (screenRecorder && screenRecorder.mimeType) || "video/webm" });
+
+      if (screenCaptureStream) {
+        screenCaptureStream.getTracks().forEach((t) => t.stop());
+        screenCaptureStream = null;
+      }
+      screenRecorder = null;
+
+      if (!blob.size) {
+        showTempBanner("⚠️ Ekran yozuvi bo'sh chiqdi");
+        return;
+      }
+
+      const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
+      const fileName = (currentRoomName || "dars") + "-ekran-" + stamp + ".webm";
+      await deliverRecordedMedia(blob, fileName, finalDuration, "Ekran yozuvi");
+    };
+
+    screenRecorder.start(1000);
+    screenRecSeconds = 0;
+    $("recDownloadLink").style.display = "none";
+    $("recBanner").classList.remove("info-banner");
+    $("recDot").style.display = "";
+    $("recStatusText").innerHTML = 'Ekran yozilmoqda: <b id="recTimer">00:00</b>';
+    $("recBanner").classList.add("active");
+
+    if (screenRecInterval) clearInterval(screenRecInterval);
+    screenRecInterval = setInterval(() => {
+      screenRecSeconds++;
+      const timerEl = $("recTimer");
+      if (timerEl && (!mediaRecorder || mediaRecorder.state !== "recording")) {
+        timerEl.textContent = formatTime(screenRecSeconds);
+      }
+    }, 1000);
+  } catch (err) {
+    console.warn("Screen recording error:", err);
+    showTempBanner("⚠️ Ekran yozish boshlanmadi");
+  }
+}
+
+function stopScreenRecording() {
+  if (screenRecInterval) {
+    clearInterval(screenRecInterval);
+    screenRecInterval = null;
+  }
+  if (screenRecorder && screenRecorder.state !== "inactive") {
+    try { screenRecorder.requestData(); } catch {}
+    screenRecorder.stop();
+  } else if (screenCaptureStream) {
+    screenCaptureStream.getTracks().forEach((t) => t.stop());
+    screenCaptureStream = null;
   }
 }
 
@@ -1336,6 +1492,15 @@ $("menuRecBtn").onclick = async () => {
     stopRecording();
   } else {
     await startRecording();
+  }
+};
+
+$("menuScreenRecBtn").onclick = async () => {
+  $("menuDropdown").classList.remove("open");
+  if (screenRecorder && screenRecorder.state === "recording") {
+    stopScreenRecording();
+  } else {
+    await startScreenRecording();
   }
 };
 
@@ -1560,11 +1725,19 @@ $("camBtn").onclick = async () => {
 $("screenBtn").onclick = async () => {
   if (!room) return;
   try {
-    screenEnabled = !screenEnabled;
-    await room.localParticipant.setScreenShareEnabled(screenEnabled);
+    const nextState = !screenEnabled;
+    await room.localParticipant.setScreenShareEnabled(nextState);
+    screenEnabled = nextState;
     refreshControlButtons();
+
+    if (screenEnabled) {
+      await startScreenRecording();
+    } else {
+      stopScreenRecording();
+    }
   } catch (e) {
     screenEnabled = false;
+    stopScreenRecording();
     refreshControlButtons();
     console.error("Screen share error:", e);
   }
@@ -1573,6 +1746,9 @@ $("screenBtn").onclick = async () => {
 $("leaveBtn").onclick = async () => {
   if (mediaRecorder && mediaRecorder.state === "recording") {
     stopRecording();
+  }
+  if (screenRecorder && screenRecorder.state === "recording") {
+    stopScreenRecording();
   }
   if (room) {
     await room.disconnect();
@@ -1584,6 +1760,9 @@ $("leaveBtn").onclick = async () => {
 function leave() {
   if (mediaRecorder && mediaRecorder.state === "recording") {
     stopRecording();
+  }
+  if (screenRecorder && screenRecorder.state === "recording") {
+    stopScreenRecording();
   }
   room = null;
   screenEnabled = false;
