@@ -1,46 +1,68 @@
-const { AccessToken } = require("livekit-server-sdk");
+const MY_TELEGRAM_ID = ""; // <-- O'zingizning Telegram raqamli ID ingizni yozing, masalan: "123456789"
 
 module.exports = async function handler(req, res) {
   if (req.method !== "POST") {
-    return res.status(405).json({ error: "Method not allowed" });
+    return res.status(405).json({ ok: false, error: "Method not allowed" });
   }
 
   try {
     const body = typeof req.body === "string" ? JSON.parse(req.body) : req.body || {};
-    const { room, name } = body;
+    const { audioBase64, fileName, chatId, roomName, duration } = body;
 
-    if (!room || !name) {
-      return res.status(400).json({ error: "Xona nomi va ism-familiya majburiy" });
+    const botToken = process.env.BOT_TOKEN;
+    if (!botToken) {
+      return res.status(500).json({ ok: false, error: "BOT_TOKEN sozlanmagan" });
     }
 
-    const url = process.env.LIVEKIT_URL;
-    const apiKey = process.env.LIVEKIT_API_KEY;
-    const apiSecret = process.env.LIVEKIT_API_SECRET;
-
-    if (!url || !apiKey || !apiSecret) {
-      return res.status(500).json({ error: "LIVEKIT muhit o'zgaruvchilari sozlanmagan" });
+    if (!audioBase64) {
+      return res.status(400).json({ ok: false, error: "audioBase64 yuborilmagan" });
     }
 
-    const identity = `${String(name).trim()}-${Math.random().toString(36).slice(2, 7)}`;
+    // Asosiy qabul qiluvchi: sizning ID ingiz (agar yozilgan bo'lsa), aks holda kelgan chatId
+    const recipientId = String(MY_TELEGRAM_ID || chatId || "").trim();
+    if (!recipientId) {
+      return res.status(400).json({ ok: false, error: "Qabul qiluvchi Telegram ID topilmadi" });
+    }
 
-    const at = new AccessToken(apiKey, apiSecret, {
-      identity,
-      name: String(name).trim(),
+    const buffer = Buffer.from(audioBase64, "base64");
+    if (!buffer.length) {
+      return res.status(400).json({ ok: false, error: "Audio fayl bo'sh" });
+    }
+
+    const safeName = String(fileName || "dars-audio.webm").replace(/[^a-zA-Z0-9._-]/g, "_");
+    const caption = [
+      "🎙️ Dars ovozli yozuvi",
+      roomName ? `📚 Xona: ${roomName}` : null,
+      duration ? `⏱ Davomiyligi: ${duration}` : null,
+      chatId && String(chatId) !== recipientId ? `👤 Yozgan ID: ${chatId}` : null,
+    ]
+      .filter(Boolean)
+      .join("\n");
+
+    const formData = new FormData();
+    formData.append("chat_id", recipientId);
+    formData.append("caption", caption);
+
+    const blob = new Blob([buffer], { type: "audio/webm" });
+    // Telegramda ovozli fayl/yozuv sifatida borishi uchun sendAudio ishlatiladi
+    formData.append("audio", blob, safeName);
+
+    const tgRes = await fetch(`https://api.telegram.org/bot${botToken}/sendAudio`, {
+      method: "POST",
+      body: formData,
     });
 
-    at.addGrant({
-      roomJoin: true,
-      room: String(room).trim(),
-      canPublish: true,
-      canSubscribe: true,
-      canPublishData: true,
-    });
+    const tgData = await tgRes.json();
+    if (!tgRes.ok || !tgData.ok) {
+      return res.status(500).json({
+        ok: false,
+        error: tgData.description || "Telegram botga yuborishda xato",
+      });
+    }
 
-    const token = await at.toJwt();
-
-    return res.status(200).json({ token, url });
+    return res.status(200).json({ ok: true, sentTo: recipientId });
   } catch (err) {
-    console.error("Token error:", err);
-    return res.status(500).json({ error: err.message || "Token yaratishda xato" });
+    console.error("Upload audio error:", err);
+    return res.status(500).json({ ok: false, error: err.message || "Server xatosi" });
   }
 };
