@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>Videochat</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/livekit-client@2.5.7/dist/livekit-client.umd.min.js"></script>
+<style>
+  :root { --bg: var(--tg-theme-bg-color, #ffffff); --fg: var(--tg-theme-text-color, #111111); --btn: var(--tg-theme-button-color, #2481cc); --btnfg: var(--tg-theme-button-text-color, #ffffff); }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: system-ui, sans-serif; background: var(--bg); color: var(--fg); height: 100vh; display: flex; flex-direction: column; }
+  #join { padding: 24px; display: flex; flex-direction: column; gap: 12px; margin: auto; width: 100%; max-width: 360px; }
+  input, button { padding: 14px; font-size: 16px; border-radius: 10px; border: 1px solid #8884; }
+  button { background: var(--btn); color: var(--btnfg); border: none; cursor: pointer; }
+  #call { display: none; flex: 1; flex-direction: column; min-height: 0; }
+  #grid { flex: 1; display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 6px; padding: 6px; overflow: auto; }
+  .tile { position: relative; background: #000; border-radius: 10px; overflow: hidden; min-height: 140px; }
+  .tile video { width: 100%; height: 100%; object-fit: cover; }
+  .tile span { position: absolute; left: 8px; bottom: 6px; color: #fff; font-size: 13px; text-shadow: 0 0 4px #000; }
+  #controls { display: flex; gap: 8px; padding: 10px; justify-content: center; }
+  #controls button { flex: 1; max-width: 140px; }
+  #leave { background: #d33; }
+</style>
+</head>
+<body>
+<div id="join">
+  <h2>Videochat</h2>
+  <input id="name" placeholder="Ismingiz">
+  <input id="room" placeholder="Xona nomi">
+  <button id="joinBtn">Kirish</button>
+  <small id="status"></small>
+</div>
+
+<div id="call">
+  <div id="grid"></div>
+  <div id="controls">
+    <button id="micBtn">Mikrofon</button>
+    <button id="camBtn">Kamera</button>
+    <button id="leave">Chiqish</button>
+  </div>
+</div>
+
+<script>
+const tg = window.Telegram.WebApp;
+tg.ready(); tg.expand();
+
+const $ = (id) => document.getElementById(id);
+const user = tg.initDataUnsafe && tg.initDataUnsafe.user;
+if (user) $("name").value = user.first_name || "";
+const startRoom = tg.initDataUnsafe && tg.initDataUnsafe.start_param;
+if (startRoom) $("room").value = startRoom;
+
+let room;
+
+function addTile(id, name) {
+  let t = document.getElementById("t-" + id);
+  if (!t) {
+    t = document.createElement("div");
+    t.className = "tile"; t.id = "t-" + id;
+    t.innerHTML = "<span>" + name + "</span>";
+    $("grid").appendChild(t);
+  }
+  return t;
+}
+
+function attach(track, participant) {
+  const t = addTile(participant.identity, participant.name || participant.identity);
+  if (track.kind === "video") {
+    const old = t.querySelector("video"); if (old) old.remove();
+    t.prepend(track.attach());
+  } else {
+    document.body.appendChild(track.attach());
+  }
+}
+
+$("joinBtn").onclick = async () => {
+  const name = $("name").value.trim();
+  const rname = $("room").value.trim();
+  if (!name || !rname) { $("status").textContent = "Ism va xona nomini kiriting"; return; }
+  $("status").textContent = "Ulanmoqda...";
+  try {
+    const res = await fetch("/.netlify/functions/token", {
+      method: "POST",
+      body: JSON.stringify({ room: rname, name })
+    });
+    const { token, url, error } = await res.json();
+    if (error) throw new Error(error);
+
+    room = new LivekitClient.Room({ adaptiveStream: true, dynacast: true });
+    room.on(LivekitClient.RoomEvent.TrackSubscribed, (track, pub, p) => attach(track, p));
+    room.on(LivekitClient.RoomEvent.TrackUnsubscribed, (track) => track.detach().forEach(e => e.remove()));
+    room.on(LivekitClient.RoomEvent.ParticipantDisconnected, (p) => { const t = $("t-" + p.identity); if (t) t.remove(); });
+    room.on(LivekitClient.RoomEvent.Disconnected, leave);
+
+    await room.connect(url, token);
+    await room.localParticipant.enableCameraAndMicrophone();
+
+    $("join").style.display = "none";
+    $("call").style.display = "flex";
+
+    const camPub = room.localParticipant.getTrackPublication(LivekitClient.Track.Source.Camera);
+    if (camPub && camPub.track) attach(camPub.track, room.localParticipant);
+    room.remoteParticipants.forEach(p => p.trackPublications.forEach(pub => { if (pub.track) attach(pub.track, p); }));
+  } catch (e) {
+    $("status").textContent = "Xato: " + e.message;
+  }
+};
+
+let mic = true, cam = true;
+$("micBtn").onclick = async () => { mic = !mic; await room.localParticipant.setMicrophoneEnabled(mic); $("micBtn").style.opacity = mic ? 1 : 0.5; };
+$("camBtn").onclick = async () => { cam = !cam; await room.localParticipant.setCameraEnabled(cam); $("camBtn").style.opacity = cam ? 1 : 0.5; };
+$("leave").onclick = () => room && room.disconnect();
+
+function leave() {
+  $("call").style.display = "none";
+  $("join").style.display = "flex";
+  $("grid").innerHTML = "";
+  $("status").textContent = "";
+}
+</script>
+</body>
+</html>
