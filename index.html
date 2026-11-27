@@ -84,8 +84,11 @@ $("joinBtn").onclick = async () => {
       method: "POST",
       body: JSON.stringify({ room: rname, name })
     });
-    const { token, url, error } = await res.json();
-    if (error) throw new Error(error);
+    let data;
+    try { data = await res.json(); } catch { throw new Error("Token serveri javob bermadi (" + res.status + ")"); }
+    const { token, url, error } = data;
+    if (error || !res.ok) throw new Error(error || ("Token olinmadi (" + res.status + ")"));
+    if (!token || !url || !/^wss?:\/\//.test(url)) throw new Error("Server noto'g'ri LiveKit manzili yoki token qaytardi");
 
     room = new LivekitClient.Room({ adaptiveStream: true, dynacast: true });
     room.on(LivekitClient.RoomEvent.TrackSubscribed, (track, pub, p) => attach(track, p));
@@ -103,7 +106,13 @@ $("joinBtn").onclick = async () => {
     if (camPub && camPub.track) attach(camPub.track, room.localParticipant);
     room.remoteParticipants.forEach(p => p.trackPublications.forEach(pub => { if (pub.track) attach(pub.track, p); }));
   } catch (e) {
-    $("status").textContent = "Xato: " + e.message;
+    console.error(e);
+    let msg = e && e.message ? e.message : String(e);
+    if (/region settings|401|invalid token|unauthorized/i.test(msg)) {
+      msg = "LiveKit tokenni rad etdi — API kalit/secret LiveKit loyihasiga mos emas (" + msg + ")";
+    }
+    $("status").textContent = "Xato: " + msg;
+    if (room) { try { await room.disconnect(); } catch {} room = null; }
   }
 };
 
