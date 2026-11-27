@@ -1,31 +1,46 @@
-async function deliverRecordedAudio(blob, fileName, durationStr) {
-  triggerLocalDownload(blob, fileName);
+const { AccessToken } = require("livekit-server-sdk");
 
-  const targetChatId = (user && user.id) ? user.id : (ADMIN_CHAT_ID || null);
-  $("recBanner").classList.remove("info-banner");
-  $("recBanner").classList.add("active");
-  $("recDot").style.display = "none";
-  $("recStatusText").textContent = "Ovoz botga yuborilmoqda...";
+module.exports = async function handler(req, res) {
+  if (req.method !== "POST") {
+    return res.status(405).json({ error: "Method not allowed" });
+  }
 
   try {
-    const audioBase64 = await blobToBase64(blob);
-    const res = await fetch("/api/upload-audio", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        audioBase64,
-        fileName,
-        chatId: targetChatId,
-        roomName: currentRoomName,
-        duration: durationStr
-      })
-    });
-    const data = await res.json();
-    if (!res.ok || !data.ok) {
-      throw new Error(data.error || "Bot javob bermadi");
+    const body = typeof req.body === "string" ? JSON.parse(req.body) : req.body || {};
+    const { room, name } = body;
+
+    if (!room || !name) {
+      return res.status(400).json({ error: "Xona nomi va ism-familiya majburiy" });
     }
-    $("recStatusText").textContent = "✅ Ovoz botga yuborildi va fayl tayyor!";
+
+    const url = process.env.LIVEKIT_URL;
+    const apiKey = process.env.LIVEKIT_API_KEY;
+    const apiSecret = process.env.LIVEKIT_API_SECRET;
+
+    if (!url || !apiKey || !apiSecret) {
+      return res.status(500).json({ error: "LIVEKIT muhit o'zgaruvchilari sozlanmagan" });
+    }
+
+    const identity = `${String(name).trim()}-${Math.random().toString(36).slice(2, 7)}`;
+
+    const at = new AccessToken(apiKey, apiSecret, {
+      identity,
+      name: String(name).trim(),
+    });
+
+    at.addGrant({
+      roomJoin: true,
+      room: String(room).trim(),
+      canPublish: true,
+      canSubscribe: true,
+      canPublishData: true,
+    });
+
+    const token = await at.toJwt();
+
+    return res.status(200).json({ token, url });
   } catch (err) {
-    $("recStatusText").textContent = "⚠️ Botga yuborilmadi (" + err.message + "), fayl yuklandi";
+    console.error("Token error:", err);
+    return res.status(500).json({ error: err.message || "Token yaratishda xato" });
   }
-}
+};
