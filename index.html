@@ -8,14 +8,15 @@
 <script src="https://cdn.jsdelivr.net/npm/livekit-client@2.5.7/dist/livekit-client.umd.min.js"></script>
 <style>
   :root {
-    --bg: #11161d;
-    --surface: #1b222c;
-    --surface-2: #242d3a;
+    --bg: #0f141b;
+    --surface: #18202a;
+    --surface-2: #222c3a;
     --fg: #f3f6fa;
     --muted: #9aa7b8;
     --btn: #2481cc;
     --btnfg: #ffffff;
     --danger: #b83b3b;
+    --rec: #dc2626;
     --border: rgba(255, 255, 255, 0.08);
   }
 
@@ -47,11 +48,11 @@
     gap: 12px;
     margin: auto;
     width: 100%;
-    max-width: 380px;
+    max-width: 390px;
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: 16px;
-    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.4);
   }
 
   #join h2 {
@@ -121,7 +122,8 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 12px 16px;
+    gap: 8px;
+    padding: 10px 14px;
     background: var(--surface);
     border-bottom: 1px solid var(--border);
     flex-shrink: 0;
@@ -134,7 +136,7 @@
   }
 
   #roomTitle {
-    font-size: 16px;
+    font-size: 15px;
     font-weight: 700;
     color: var(--fg);
     white-space: nowrap;
@@ -148,26 +150,75 @@
     margin-top: 2px;
   }
 
-  #copyRoomBtn {
+  .top-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+  }
+
+  .top-btn {
     background: var(--surface-2);
     color: var(--fg);
     border: 1px solid var(--border);
     border-radius: 8px;
-    padding: 7px 11px;
+    padding: 7px 10px;
+    font-size: 12px;
+    font-weight: 600;
+  }
+
+  #copyLinkBtn {
+    background: rgba(36, 129, 204, 0.22);
+    border-color: rgba(36, 129, 204, 0.5);
+    color: #7cc4ff;
+  }
+
+  #recIndicator {
+    display: none;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 10px;
+    border-radius: 999px;
+    background: rgba(220, 38, 38, 0.16);
+    border: 1px solid rgba(220, 38, 38, 0.45);
+    color: #fca5a5;
     font-size: 12px;
     font-weight: 600;
     flex-shrink: 0;
+  }
+
+  #recIndicator.active {
+    display: flex;
+  }
+
+  .rec-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--rec);
+    animation: pulse 1s infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
   }
 
   /* Ishtirokchilar maydoni */
   #grid {
     flex: 1;
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
     gap: 10px;
     padding: 12px;
     overflow-y: auto;
     align-content: start;
+  }
+
+  body.wide-grid #grid {
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 14px;
+    padding: 16px;
   }
 
   .tile {
@@ -176,7 +227,7 @@
     border: 1px solid var(--border);
     border-radius: 14px;
     overflow: hidden;
-    min-height: 170px;
+    min-height: 175px;
     aspect-ratio: 4 / 3;
     display: flex;
     align-items: center;
@@ -205,23 +256,34 @@
     align-items: center;
     justify-content: center;
     gap: 6px;
-    padding: 12px;
+    padding: 12px 10px 36px;
     text-align: center;
+    max-width: 100%;
   }
 
   .avatar-circle {
-    width: 58px;
-    height: 58px;
+    width: 56px;
+    height: 56px;
     border-radius: 50%;
     background: #2b5b84;
     color: #ffffff;
-    font-size: 20px;
+    font-size: 19px;
     font-weight: 700;
     display: flex;
     align-items: center;
     justify-content: center;
     letter-spacing: 0.5px;
     user-select: none;
+  }
+
+  .avatar-fullname {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--fg);
+    max-width: 160px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   .status-text {
@@ -234,8 +296,8 @@
     left: 0;
     right: 0;
     bottom: 0;
-    padding: 8px 10px;
-    background: linear-gradient(transparent, rgba(0, 0, 0, 0.78));
+    padding: 10px 10px 8px;
+    background: linear-gradient(transparent, rgba(0, 0, 0, 0.85));
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -260,8 +322,9 @@
   /* Pastki boshqaruv tugmalari */
   #controls {
     display: flex;
-    gap: 14px;
-    padding: 12px 16px calc(22px + env(safe-area-inset-bottom, 0px));
+    flex-wrap: wrap;
+    gap: 10px;
+    padding: 10px 12px calc(24px + env(safe-area-inset-bottom, 0px));
     justify-content: center;
     align-items: center;
     background: var(--surface);
@@ -275,18 +338,18 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 5px;
-    min-width: 60px;
+    gap: 4px;
+    min-width: 52px;
   }
 
   .ctrl-btn {
-    width: 48px;
-    height: 48px;
+    width: 44px;
+    height: 44px;
     border-radius: 50%;
     background: var(--surface-2);
     color: var(--fg);
     border: 1px solid rgba(255, 255, 255, 0.12);
-    font-size: 18px;
+    font-size: 17px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -295,6 +358,12 @@
   .ctrl-btn.active {
     background: var(--btn);
     border-color: var(--btn);
+    color: #fff;
+  }
+
+  .ctrl-btn.recording {
+    background: var(--rec);
+    border-color: var(--rec);
     color: #fff;
   }
 
@@ -313,21 +382,12 @@
     color: var(--muted);
     user-select: none;
   }
-
-  /* Netlify belgisini yashirishga urinish */
-  [class*="netlify-badge"],
-  [id*="netlify-badge"],
-  a[href*="netlify.com"] {
-    display: none !important;
-    visibility: hidden !important;
-    pointer-events: none !important;
-  }
 </style>
 </head>
 <body>
 <div id="join">
   <h2>Videochat</h2>
-  <input id="name" placeholder="Ismingiz">
+  <input id="name" placeholder="Ism va familiyangiz">
   <input id="room" placeholder="Xona nomi">
   <button id="joinBtn">Kirish</button>
   <small id="status"></small>
@@ -339,7 +399,14 @@
       <div id="roomTitle">Xona</div>
       <div id="participantCount">1 participant</div>
     </div>
-    <button id="copyRoomBtn" type="button">Xona kodi</button>
+    <div id="recIndicator">
+      <span class="rec-dot"></span>
+      <span id="recTimer">00:00</span>
+    </div>
+    <div class="top-actions">
+      <button id="expandBtn" class="top-btn" type="button" title="Oynani kattalashtirish">Kattalashtirish</button>
+      <button id="copyLinkBtn" class="top-btn" type="button" title="Taklif havolasini nusxalash">Silka olish</button>
+    </div>
   </div>
 
   <div id="grid"></div>
@@ -358,6 +425,10 @@
       <span class="ctrl-label">Mic</span>
     </div>
     <div class="ctrl-item">
+      <button id="recBtn" class="ctrl-btn" type="button" title="Ovoz yozish">⏺️</button>
+      <span class="ctrl-label">Ovoz yoz</span>
+    </div>
+    <div class="ctrl-item">
       <button id="leaveBtn" class="ctrl-btn" type="button" title="Chiqish">📞</button>
       <span class="ctrl-label">Leave</span>
     </div>
@@ -365,6 +436,7 @@
 </div>
 
 <script>
+const BOT_USERNAME = "darsvideochati_bot";
 const tg = window.Telegram && window.Telegram.WebApp ? window.Telegram.WebApp : null;
 if (tg) {
   tg.ready();
@@ -372,13 +444,33 @@ if (tg) {
 }
 
 const $ = (id) => document.getElementById(id);
+
+/* Telegram foydalanuvchi ism-familiyasini olish */
 const user = tg && tg.initDataUnsafe ? tg.initDataUnsafe.user : null;
 if (user && user.first_name) {
-  $("name").value = [user.first_name, user.last_name].filter(Boolean).join(" ");
+  const full = [user.first_name, user.last_name].filter(Boolean).join(" ").trim();
+  if (full && full !== ".") {
+    $("name").value = full;
+  }
 }
-const startRoom = tg && tg.initDataUnsafe ? tg.initDataUnsafe.start_param : null;
-if (startRoom) {
-  $("room").value = startRoom;
+
+/* Havola orqali kelgan xona nomini o'qish (?startapp=... yoki ?room=...) */
+function getInviteRoomFromUrl() {
+  const params = new URLSearchParams(window.location.search);
+  const fromQuery = params.get("room") || params.get("tgWebAppStartParam");
+  const fromTg = tg && tg.initDataUnsafe ? tg.initDataUnsafe.start_param : "";
+  const raw = (fromTg || fromQuery || "").trim();
+  if (!raw) return "";
+  try {
+    return decodeURIComponent(raw);
+  } catch {
+    return raw;
+  }
+}
+
+const invitedRoom = getInviteRoomFromUrl();
+if (invitedRoom) {
+  $("room").value = invitedRoom;
 }
 
 let room;
@@ -386,6 +478,15 @@ let micEnabled = true;
 let camEnabled = true;
 let screenEnabled = false;
 let currentRoomName = "";
+
+/* Ovoz yozib olish holati */
+let mediaRecorder = null;
+let recordedChunks = [];
+let recSeconds = 0;
+let recInterval = null;
+let audioCtx = null;
+let audioDest = null;
+const connectedAudioSources = new Map();
 
 function getInitials(fullName) {
   const parts = String(fullName || "U").trim().split(/\s+/).filter(Boolean);
@@ -415,17 +516,25 @@ function addTile(id, displayName) {
     avatarBox.className = "avatar-box";
     avatarBox.innerHTML =
       '<div class="avatar-circle">' + getInitials(safeName) + '</div>' +
+      '<div class="avatar-fullname" title="' + safeName + '">' + safeName + '</div>' +
       '<div class="status-text">listening</div>';
 
     const footer = document.createElement("div");
     footer.className = "tile-footer";
     footer.innerHTML =
-      '<span class="tile-name">' + safeName + '</span>' +
+      '<span class="tile-name" title="' + safeName + '">' + safeName + '</span>' +
       '<span class="mic-badge" id="mic-state-' + id + '"></span>';
 
     t.appendChild(avatarBox);
     t.appendChild(footer);
     $("grid").appendChild(t);
+  } else {
+    const fn = t.querySelector(".avatar-fullname");
+    const tn = t.querySelector(".tile-name");
+    const av = t.querySelector(".avatar-circle");
+    if (fn) { fn.textContent = safeName; fn.title = safeName; }
+    if (tn) { tn.textContent = safeName; tn.title = safeName; }
+    if (av) av.textContent = getInitials(safeName);
   }
   return t;
 }
@@ -446,6 +555,19 @@ function setTileMicState(id, isMuted) {
   badge.textContent = isMuted ? "🔇" : "";
 }
 
+function hookTrackIntoRecorder(track) {
+  if (!audioDest || track.kind !== "audio" || !track.mediaStreamTrack) return;
+  if (connectedAudioSources.has(track.sid || track.mediaStreamTrack.id)) return;
+  try {
+    const stream = new MediaStream([track.mediaStreamTrack]);
+    const source = audioCtx.createMediaStreamSource(stream);
+    source.connect(audioDest);
+    connectedAudioSources.set(track.sid || track.mediaStreamTrack.id, source);
+  } catch (e) {
+    console.warn("Audio mix error:", e);
+  }
+}
+
 function attach(track, participant) {
   const id = participant.identity;
   const displayName = participant.name || id;
@@ -458,10 +580,11 @@ function attach(track, participant) {
     t.prepend(videoEl);
     setTileVideoState(id, true);
   } else if (track.kind === "audio") {
-    const audioEl = track.attach();
     if (!participant.isLocal) {
+      const audioEl = track.attach();
       document.body.appendChild(audioEl);
     }
+    hookTrackIntoRecorder(track);
   }
 }
 
@@ -486,8 +609,9 @@ function syncParticipant(participant, isLocal = false) {
     if (pub.track && pub.kind === "video" && !pub.isMuted) {
       attach(pub.track, participant);
       hasActiveVideo = true;
-    } else if (pub.track && pub.kind === "audio" && !isLocal) {
-      attach(pub.track, participant);
+    } else if (pub.track && pub.kind === "audio") {
+      if (!isLocal) attach(pub.track, participant);
+      else hookTrackIntoRecorder(pub.track);
     }
   });
   setTileVideoState(id, hasActiveVideo);
@@ -496,22 +620,150 @@ function syncParticipant(participant, isLocal = false) {
   setTileMicState(id, !micPub || micPub.isMuted);
 }
 
-$("copyRoomBtn").onclick = async () => {
+/* Oynani kattalashtirish */
+$("expandBtn").onclick = () => {
+  if (tg) {
+    try { tg.expand(); } catch {}
+    if (typeof tg.requestFullscreen === "function") {
+      try { tg.requestFullscreen(); } catch {}
+    }
+  }
+  document.body.classList.toggle("wide-grid");
+  if (!document.fullscreenElement && document.documentElement.requestFullscreen) {
+    document.documentElement.requestFullscreen().catch(() => {});
+  } else if (document.fullscreenElement && document.exitFullscreen) {
+    document.exitFullscreen().catch(() => {});
+  }
+  $("expandBtn").textContent = document.body.classList.contains("wide-grid") ? "Oddiy oyna" : "Kattalashtirish";
+};
+
+/* Taklif havolasini yaratish va nusxalash */
+function buildInviteLink(roomName) {
+  const encoded = encodeURIComponent(roomName.trim());
+  if (tg && BOT_USERNAME) {
+    return "https://t.me/" + BOT_USERNAME + "?startapp=" + encoded;
+  }
+  return window.location.origin + "/?room=" + encoded;
+}
+
+$("copyLinkBtn").onclick = async () => {
   if (!currentRoomName) return;
+  const inviteLink = buildInviteLink(currentRoomName);
   try {
-    await navigator.clipboard.writeText(currentRoomName);
-    $("copyRoomBtn").textContent = "Nusxalandi";
-    setTimeout(() => { $("copyRoomBtn").textContent = "Xona kodi"; }, 1500);
+    await navigator.clipboard.writeText(inviteLink);
+    $("copyLinkBtn").textContent = "Silka nusxalandi!";
+    setTimeout(() => { $("copyLinkBtn").textContent = "Silka olish"; }, 1800);
   } catch {
-    $("copyRoomBtn").textContent = currentRoomName;
+    prompt("Quyidagi havolani nusxalab yuboring:", inviteLink);
   }
 };
 
-$("joinBtn").onclick = async () => {
+/* Ovoz yozib olish */
+function formatTime(sec) {
+  const m = String(Math.floor(sec / 60)).padStart(2, "0");
+  const s = String(sec % 60).padStart(2, "0");
+  return m + ":" + s;
+}
+
+async function startRecording() {
+  if (!room) return;
+  const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+  audioCtx = new AudioContextClass();
+  audioDest = audioCtx.createMediaStreamDestination();
+  connectedAudioSources.clear();
+
+  const localMic = room.localParticipant.getTrackPublication(LivekitClient.Track.Source.Microphone);
+  if (localMic && localMic.track) hookTrackIntoRecorder(localMic.track);
+
+  room.remoteParticipants.forEach((p) => {
+    p.trackPublications.forEach((pub) => {
+      if (pub.track && pub.kind === "audio") hookTrackIntoRecorder(pub.track);
+    });
+  });
+
+  if (audioDest.stream.getAudioTracks().length === 0) {
+    try {
+      const micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const src = audioCtx.createMediaStreamSource(micStream);
+      src.connect(audioDest);
+    } catch (e) {
+      alert("Mikrofon oqimi topilmadi: " + e.message);
+      return;
+    }
+  }
+
+  recordedChunks = [];
+  const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
+    ? "audio/webm;codecs=opus"
+    : "";
+  mediaRecorder = mimeType
+    ? new MediaRecorder(audioDest.stream, { mimeType })
+    : new MediaRecorder(audioDest.stream);
+
+  mediaRecorder.ondataavailable = (e) => {
+    if (e.data && e.data.size > 0) recordedChunks.push(e.data);
+  };
+
+  mediaRecorder.onstop = () => {
+    const blob = new Blob(recordedChunks, { type: mediaRecorder.mimeType || "audio/webm" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
+    a.href = url;
+    a.download = (currentRoomName || "videochat") + "-ovoz-" + stamp + ".webm";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+
+    if (audioCtx) {
+      audioCtx.close().catch(() => {});
+      audioCtx = null;
+      audioDest = null;
+    }
+  };
+
+  mediaRecorder.start();
+  recSeconds = 0;
+  $("recTimer").textContent = "00:00";
+  $("recIndicator").classList.add("active");
+  $("recBtn").classList.add("recording");
+  $("recBtn").textContent = "⏹️";
+
+  recInterval = setInterval(() => {
+    recSeconds++;
+    $("recTimer").textContent = formatTime(recSeconds);
+  }, 1000);
+}
+
+function stopRecording() {
+  if (recInterval) {
+    clearInterval(recInterval);
+    recInterval = null;
+  }
+  $("recIndicator").classList.remove("active");
+  $("recBtn").classList.remove("recording");
+  $("recBtn").textContent = "⏺️";
+
+  if (mediaRecorder && mediaRecorder.state !== "inactive") {
+    mediaRecorder.stop();
+  }
+  mediaRecorder = null;
+}
+
+$("recBtn").onclick = async () => {
+  if (mediaRecorder && mediaRecorder.state === "recording") {
+    stopRecording();
+  } else {
+    await startRecording();
+  }
+};
+
+async function joinRoom() {
   const name = $("name").value.trim();
   const rname = $("room").value.trim();
-  if (!name || !rname) {
-    $("status").textContent = "Ism va xona nomini kiriting";
+  if (!name || name === "." || !rname) {
+    $("status").textContent = "Ism-familiya va xona nomini kiriting";
     return;
   }
 
@@ -621,7 +873,14 @@ $("joinBtn").onclick = async () => {
   } finally {
     $("joinBtn").disabled = false;
   }
-};
+}
+
+$("joinBtn").onclick = joinRoom;
+
+/* Agar foydalanuvchi silka bilan kirgan bo'lsa va ismi tayyor bo'lsa, avtomatik xonaga ulanish */
+if (invitedRoom && $("name").value.trim() && $("name").value.trim() !== ".") {
+  joinRoom();
+}
 
 function refreshControlButtons() {
   $("micBtn").classList.toggle("active", micEnabled);
@@ -679,6 +938,9 @@ $("screenBtn").onclick = async () => {
 };
 
 $("leaveBtn").onclick = async () => {
+  if (mediaRecorder && mediaRecorder.state === "recording") {
+    stopRecording();
+  }
   if (room) {
     await room.disconnect();
   } else {
@@ -687,6 +949,9 @@ $("leaveBtn").onclick = async () => {
 };
 
 function leave() {
+  if (mediaRecorder && mediaRecorder.state === "recording") {
+    stopRecording();
+  }
   room = null;
   screenEnabled = false;
   $("call").style.display = "none";
