@@ -1508,8 +1508,10 @@ async function deliverRecordedMedia(blob, fileName, durationStr, labelPrefix = "
         body: JSON.stringify({
           audioBase64: mediaBase64,
           mediaBase64,
+          videoBase64: mediaType === "video" ? mediaBase64 : undefined,
           mediaType,
-          mimeType: blob.type || (mediaType === "video" ? "video/webm" : "audio/webm"),
+          type: mediaType,
+          mimeType: blob.type || (mediaType === "video" ? "video/mp4" : "audio/webm"),
           fileName,
           chatId,
           roomName: currentRoomName,
@@ -1567,6 +1569,8 @@ async function startScreenRecordingWithStream(existingStream = null) {
     screenChunks = [];
 
     const mimeCandidates = [
+      "video/mp4;codecs=avc1.42E01E,mp4a.40.2",
+      "video/mp4",
       "video/webm;codecs=vp8,opus",
       "video/webm;codecs=vp9,opus",
       "video/webm"
@@ -1594,8 +1598,10 @@ async function startScreenRecordingWithStream(existingStream = null) {
         screenRecInterval = null;
       }
       const finalDuration = formatTime(screenRecSeconds);
-      const videoMime = (screenRecorder && screenRecorder.mimeType) || "video/webm";
-      const blob = new Blob(screenChunks, { type: videoMime });
+      const rawMime = (screenRecorder && screenRecorder.mimeType) || "video/webm";
+      const isMp4 = /mp4/i.test(rawMime);
+      const ext = isMp4 ? ".mp4" : ".webm";
+      const blob = new Blob(screenChunks, { type: rawMime });
 
       if (!existingStream && screenCaptureStream) {
         screenCaptureStream.getTracks().forEach((t) => t.stop());
@@ -1609,7 +1615,7 @@ async function startScreenRecordingWithStream(existingStream = null) {
       }
 
       const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
-      const fileName = (currentRoomName || "dars") + "-ekran-video-" + stamp + ".webm";
+      const fileName = (currentRoomName || "dars") + "-ekran-video-" + stamp + ext;
       await deliverRecordedMedia(blob, fileName, finalDuration, "Ekran videosi", "video");
     };
 
