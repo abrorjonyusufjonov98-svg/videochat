@@ -17,6 +17,8 @@
     --accent-glow: rgba(62, 166, 255, 0.35);
     --btn-dark: #22303f;
     --danger: #8e3b3b;
+    --warn: #d9822b;
+    --ok: #2ea043;
     --rec: #e53935;
     --border: rgba(255, 255, 255, 0.06);
   }
@@ -62,7 +64,7 @@
     text-align: center;
   }
 
-  input {
+  input, select {
     padding: 13px 14px;
     font-size: 15px;
     border-radius: 10px;
@@ -72,12 +74,34 @@
     outline: none;
   }
 
-  input:focus {
+  input:focus, select:focus {
     border-color: var(--accent);
   }
 
   input::placeholder {
     color: var(--muted);
+  }
+
+  .role-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+
+  .role-btn {
+    padding: 10px;
+    border-radius: 10px;
+    background: var(--bg);
+    color: var(--muted);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    font-size: 13px;
+    font-weight: 600;
+  }
+
+  .role-btn.active {
+    background: #2b5278;
+    color: #fff;
+    border-color: var(--accent);
   }
 
   button {
@@ -175,7 +199,7 @@
     position: absolute;
     top: 48px;
     left: 14px;
-    min-width: 220px;
+    min-width: 255px;
     background: var(--card);
     border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 12px;
@@ -199,7 +223,7 @@
     border-radius: 8px;
     background: transparent;
     color: var(--fg);
-    font-size: 14px;
+    font-size: 13.5px;
     text-align: left;
   }
 
@@ -212,13 +236,20 @@
     font-weight: 600;
   }
 
+  .menu-divider {
+    height: 1px;
+    background: var(--border);
+    margin: 4px 6px;
+  }
+
   #recBanner {
     display: none;
     align-items: center;
     justify-content: center;
+    flex-wrap: wrap;
     gap: 8px;
     margin: 2px 14px 6px;
-    padding: 6px 12px;
+    padding: 7px 12px;
     border-radius: 10px;
     background: rgba(229, 57, 53, 0.15);
     border: 1px solid rgba(229, 57, 53, 0.35);
@@ -232,6 +263,12 @@
     display: flex;
   }
 
+  #recBanner.info-banner {
+    background: rgba(62, 166, 255, 0.14);
+    border-color: rgba(62, 166, 255, 0.35);
+    color: #b7dfff;
+  }
+
   .rec-dot {
     width: 8px;
     height: 8px;
@@ -240,9 +277,70 @@
     animation: pulse 1s infinite;
   }
 
+  .download-link-btn {
+    padding: 3px 8px;
+    border-radius: 6px;
+    background: #2b5278;
+    color: #fff;
+    font-size: 11.5px;
+    text-decoration: none;
+  }
+
   @keyframes pulse {
     0%, 100% { opacity: 1; }
     50% { opacity: 0.25; }
+  }
+
+  #teacherPanel {
+    display: none;
+    margin: 4px 14px 6px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    background: var(--card);
+    border: 1px solid rgba(62, 166, 255, 0.25);
+    flex-shrink: 0;
+  }
+
+  #teacherPanel.visible {
+    display: block;
+  }
+
+  .teacher-panel-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 8px;
+    font-size: 13px;
+    font-weight: 600;
+  }
+
+  .teacher-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .mini-btn {
+    padding: 6px 10px;
+    border-radius: 8px;
+    background: var(--btn-dark);
+    color: var(--fg);
+    font-size: 12px;
+    font-weight: 500;
+  }
+
+  .mini-btn:hover {
+    background: var(--card-hover);
+  }
+
+  .mini-btn.primary {
+    background: #2b5278;
+  }
+
+  .mini-btn.danger {
+    background: rgba(142, 59, 59, 0.45);
+    color: #ffb4b4;
   }
 
   #grid {
@@ -305,6 +403,10 @@
     border-color: rgba(62, 166, 255, 0.45);
   }
 
+  .tile.video-off.hand-raised {
+    border-color: rgba(255, 193, 7, 0.55);
+  }
+
   .tile.video-off video {
     display: none;
   }
@@ -313,7 +415,7 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 12px;
+    gap: 10px;
   }
 
   .user-left {
@@ -344,6 +446,13 @@
     min-width: 0;
   }
 
+  .name-line {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+  }
+
   .tile-name {
     font-size: 15px;
     font-weight: 600;
@@ -353,10 +462,54 @@
     text-overflow: ellipsis;
   }
 
+  .role-badge {
+    font-size: 11px;
+    padding: 2px 6px;
+    border-radius: 6px;
+    background: rgba(62, 166, 255, 0.2);
+    color: #8ccaff;
+    font-weight: 600;
+    flex-shrink: 0;
+  }
+
+  .hand-badge {
+    font-size: 11.5px;
+    padding: 2px 7px;
+    border-radius: 6px;
+    background: rgba(255, 193, 7, 0.2);
+    color: #ffd54f;
+    font-weight: 600;
+    flex-shrink: 0;
+  }
+
   .status-text {
     font-size: 13px;
     color: var(--accent);
     margin-top: 2px;
+  }
+
+  .right-controls {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+  }
+
+  .tile-mod-btn {
+    padding: 4px 8px;
+    border-radius: 7px;
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--fg);
+    font-size: 11.5px;
+  }
+
+  .tile-mod-btn:hover {
+    background: rgba(255, 255, 255, 0.15);
+  }
+
+  .tile-mod-btn.kick {
+    background: rgba(142, 59, 59, 0.45);
+    color: #ffb8b8;
   }
 
   .mic-icon-right {
@@ -377,8 +530,8 @@
     display: flex;
     justify-content: space-around;
     align-items: flex-start;
-    gap: 8px;
-    padding: 12px 16px calc(24px + env(safe-area-inset-bottom, 0px));
+    gap: 6px;
+    padding: 12px 12px calc(24px + env(safe-area-inset-bottom, 0px));
     background: var(--bg);
     flex-shrink: 0;
     position: relative;
@@ -390,18 +543,19 @@
     flex-direction: column;
     align-items: center;
     gap: 7px;
-    min-width: 62px;
+    min-width: 56px;
   }
 
   .ctrl-btn {
-    width: 54px;
-    height: 54px;
+    width: 52px;
+    height: 52px;
     border-radius: 50%;
     background: var(--btn-dark);
     color: #ffffff;
     display: flex;
     align-items: center;
     justify-content: center;
+    font-size: 20px;
   }
 
   .ctrl-btn svg {
@@ -426,12 +580,17 @@
     box-shadow: 0 0 14px rgba(62, 166, 255, 0.35);
   }
 
+  #handBtn.active {
+    background: #9a6b00;
+    box-shadow: 0 0 14px rgba(255, 193, 7, 0.4);
+  }
+
   #leaveBtn {
     background: var(--danger);
   }
 
   .ctrl-label {
-    font-size: 12px;
+    font-size: 11.5px;
     color: #d0dae5;
     user-select: none;
   }
@@ -441,7 +600,11 @@
 <div id="join">
   <h2>Videochat</h2>
   <input id="name" placeholder="Ism va familiyangiz">
-  <input id="room" placeholder="Xona nomi">
+  <input id="room" placeholder="Dars / xona nomi">
+  <div class="role-row">
+    <button type="button" class="role-btn active" data-role="student">🎓 O‘quvchi</button>
+    <button type="button" class="role-btn" data-role="teacher">👑 Ustoz</button>
+  </div>
   <button id="joinBtn">Kirish</button>
   <small id="status"></small>
 </div>
@@ -456,20 +619,42 @@
     <button id="expandBtn" class="icon-top-btn" type="button" title="Kattalashtirish">⤢</button>
 
     <div id="menuDropdown">
-      <button id="menuRecBtn" class="menu-item" type="button">⏺️ Ovoz yozishni boshlash</button>
-      <button id="menuCopyBtn" class="menu-item" type="button">🔗 Taklif silkani nusxalash</button>
+      <button id="menuRecBtn" class="menu-item" type="button">⏺️ Darsni yozishni boshlash</button>
+      <button id="menuTeacherPanelBtn" class="menu-item" type="button">👑 Ustozlar paneli</button>
+      <div class="menu-divider"></div>
+      <button id="menuCopyBtn" class="menu-item" type="button">🔗 Telegram taklif silka</button>
+      <button id="menuCopyWebBtn" class="menu-item" type="button">💻 Kompyuterdan kirish linki</button>
+      <button id="menuShareGroupBtn" class="menu-item" type="button">📢 Guruh/kanalga yuborish matni</button>
       <button id="menuExpandBtn" class="menu-item" type="button">🖥️ Oynani kattalashtirish</button>
     </div>
   </div>
 
   <div id="recBanner">
-    <span class="rec-dot"></span>
+    <span class="rec-dot" id="recDot"></span>
     <span id="recStatusText">Ovoz yozilmoqda: <b id="recTimer">00:00</b></span>
+    <a id="recDownloadLink" class="download-link-btn" style="display:none;" download>⬇️ Yuklab olish</a>
+  </div>
+
+  <div id="teacherPanel">
+    <div class="teacher-panel-head">
+      <span>👑 Ustozlar va navbat boshqaruvi</span>
+      <span id="queueSummary" style="color:var(--muted);font-size:12px;">Navbat: 0</span>
+    </div>
+    <div class="teacher-actions">
+      <button id="claimTeacherBtn" class="mini-btn primary" type="button">👑 Meni ustoz qil</button>
+      <button id="callNextBtn" class="mini-btn" type="button">✋ Navbatdagini chaqirish</button>
+      <button id="clearHandsBtn" class="mini-btn" type="button">🧹 Qo‘llarni tushirish</button>
+    </div>
   </div>
 
   <div id="grid"></div>
 
   <div id="controls">
+    <div class="ctrl-item">
+      <button id="handBtn" class="ctrl-btn" type="button" title="Qo‘l ko‘tarish">✋</button>
+      <span class="ctrl-label" id="handLabel">Qo‘l</span>
+    </div>
+
     <div class="ctrl-item">
       <button id="screenBtn" class="ctrl-btn" type="button" title="Screen">
         <svg viewBox="0 0 24 24"><path d="M20 18c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2H4c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2H0v2h24v-2h-4zM4 6h16v10H4V6zm9 4.5V8l4 3.5-4 3.5v-2.5c-2.5 0-4.2.8-5.5 2.5.5-2.5 2-5 5.5-4.5z"/></svg>
@@ -502,6 +687,8 @@
 
 <script>
 const BOT_USERNAME = "darsvideochati_bot";
+const ADMIN_CHAT_ID = ""; // Ixtiyoriy: ovoz har doim shu Telegram ID ga ham yuboriladi
+
 const tg = window.Telegram && window.Telegram.WebApp ? window.Telegram.WebApp : null;
 if (tg) {
   tg.ready();
@@ -509,6 +696,8 @@ if (tg) {
 }
 
 const $ = (id) => document.getElementById(id);
+const encoder = new TextEncoder();
+const decoder = new TextDecoder();
 
 const user = tg && tg.initDataUnsafe ? tg.initDataUnsafe.user : null;
 if (user && user.first_name) {
@@ -517,6 +706,15 @@ if (user && user.first_name) {
     $("name").value = full;
   }
 }
+
+let selectedInitialRole = "student";
+document.querySelectorAll(".role-btn").forEach((btn) => {
+  btn.onclick = () => {
+    document.querySelectorAll(".role-btn").forEach((b) => b.classList.remove("active"));
+    btn.classList.add("active");
+    selectedInitialRole = btn.dataset.role || "student";
+  };
+});
 
 function getInviteRoomFromUrl() {
   const params = new URLSearchParams(window.location.search);
@@ -542,6 +740,13 @@ let camEnabled = false;
 let screenEnabled = false;
 let currentRoomName = "";
 
+// Rollar va navbat holati: { [identity]: boolean }
+const teachersMap = new Map();
+// Qo'l ko'targanlar navbati: identity lar tartibi
+let handQueue = [];
+let myHandRaised = false;
+let panelForceOpen = false;
+
 let mediaRecorder = null;
 let recordedChunks = [];
 let recSeconds = 0;
@@ -549,11 +754,21 @@ let recInterval = null;
 let audioCtx = null;
 let audioDest = null;
 const connectedAudioSources = new Map();
+let lastAudioObjectUrl = null;
 
 const SVG_MIC_ON = '<path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.91-3c-.49 0-.9.36-.98.85C16.52 14.2 14.47 16 12 16s-4.52-1.8-4.93-4.15a.998.998 0 0 0-.98-.85c-.61 0-1.09.54-1 1.14.49 3 2.89 5.35 5.91 5.78V20c0 .55.45 1 1 1s1-.45 1-1v-2.08c3.02-.43 5.42-2.78 5.91-5.78.1-.6-.39-1.14-1-1.14z"/>';
 const SVG_MIC_OFF = '<path d="M19 11h-1.7c0 .74-.16 1.43-.43 2.05l1.23 1.23c.56-.98.9-2.09.9-3.28zm-4.02.17c0-.06.02-.11.02-.17V5c0-1.66-1.34-3-3-3S9 3.34 9 5v.18l5.98 5.99zM4.27 3L3 4.27l6.01 6.01V11c0 1.66 1.33 3 2.99 3 .22 0 .44-.03.65-.08l1.66 1.66c-.71.33-1.5.52-2.31.52-2.76 0-5.3-2.1-5.3-5.1H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c.91-.13 1.77-.45 2.54-.9L19.73 21 21 19.73 4.27 3z"/>';
 const SVG_CAM_ON = '<path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"/>';
 const SVG_CAM_OFF = '<path d="M21 6.5l-4 4V7c0-.55-.45-1-1-1H9.82L21 17.18V6.5zM3.27 2L2 3.27 4.73 6H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.21 0 .39-.08.54-.18L19.73 21 21 19.73 3.27 2z"/>';
+
+function getLocalId() {
+  return room && room.localParticipant ? room.localParticipant.identity : "";
+}
+
+function isLocalTeacher() {
+  const lid = getLocalId();
+  return !!(lid && teachersMap.get(lid));
+}
 
 function getInitials(fullName) {
   const parts = String(fullName || "U").trim().split(/\s+/).filter(Boolean);
@@ -571,6 +786,86 @@ function updateParticipantCount() {
   $("participantCount").textContent = total + (total === 1 ? " participant" : " participants");
 }
 
+function broadcastState(extra = {}) {
+  if (!room || !room.localParticipant) return;
+  const payload = {
+    type: "ROOM_SYNC",
+    teachers: Array.from(teachersMap.entries()).filter(([, v]) => v).map(([k]) => k),
+    queue: handQueue.slice(),
+    ...extra
+  };
+  try {
+    room.localParticipant.publishData(encoder.encode(JSON.stringify(payload)), { reliable: true });
+  } catch (e) {
+    console.warn("Data broadcast error:", e);
+  }
+}
+
+function refreshTeacherPanel() {
+  const canManage = isLocalTeacher();
+  $("teacherPanel").classList.toggle("visible", canManage || panelForceOpen);
+  $("queueSummary").textContent = "Navbat: " + handQueue.length;
+  $("claimTeacherBtn").textContent = canManage ? "👑 Ustoz rejimidasiz" : "👑 Meni ustoz qil";
+}
+
+function refreshAllBadges() {
+  const amTeacher = isLocalTeacher();
+  const localId = getLocalId();
+
+  document.querySelectorAll(".tile").forEach((tile) => {
+    const pid = tile.id.replace(/^t-/, "");
+    const isT = !!teachersMap.get(pid);
+    const qIdx = handQueue.indexOf(pid);
+    const raised = qIdx !== -1;
+
+    tile.classList.toggle("hand-raised", raised && tile.classList.contains("video-off"));
+
+    const badgeWrap = tile.querySelector(".badge-slot");
+    if (badgeWrap) {
+      let html = "";
+      if (isT) html += '<span class="role-badge">Ustoz</span>';
+      if (raised) html += '<span class="hand-badge">✋ #' + (qIdx + 1) + '</span>';
+      badgeWrap.innerHTML = html;
+    }
+
+    const modWrap = tile.querySelector(".mod-slot");
+    if (modWrap) {
+      if (amTeacher && pid !== localId) {
+        modWrap.innerHTML =
+          '<button type="button" class="tile-mod-btn" data-act="toggle-teacher" data-pid="' + pid + '">' +
+            (isT ? "Ustozlikni olish" : "Ustoz qilish") +
+          '</button>' +
+          '<button type="button" class="tile-mod-btn kick" data-act="kick" data-pid="' + pid + '">Uzish</button>';
+      } else {
+        modWrap.innerHTML = "";
+      }
+    }
+  });
+
+  document.querySelectorAll(".tile-mod-btn").forEach((btn) => {
+    btn.onclick = () => {
+      const targetId = btn.dataset.pid;
+      const act = btn.dataset.act;
+      if (!isLocalTeacher() || !targetId) return;
+
+      if (act === "toggle-teacher") {
+        const nextVal = !teachersMap.get(targetId);
+        teachersMap.set(targetId, nextVal);
+        refreshAllBadges();
+        refreshTeacherPanel();
+        broadcastState();
+      } else if (act === "kick") {
+        broadcastState({ kickIdentity: targetId });
+        const t = document.getElementById("t-" + targetId);
+        if (t) t.remove();
+        handQueue = handQueue.filter((x) => x !== targetId);
+        refreshAllBadges();
+        refreshTeacherPanel();
+      }
+    };
+  });
+}
+
 function addTile(id, displayName) {
   const safeName = displayName || id;
   let t = document.getElementById("t-" + id);
@@ -585,12 +880,18 @@ function addTile(id, displayName) {
       '<div class="user-left">' +
         '<div class="avatar-circle">' + getInitials(safeName) + '</div>' +
         '<div class="user-meta">' +
-          '<div class="tile-name" title="' + safeName + '">' + safeName + '</div>' +
+          '<div class="name-line">' +
+            '<div class="tile-name" title="' + safeName + '">' + safeName + '</div>' +
+            '<span class="badge-slot"></span>' +
+          '</div>' +
           '<div class="status-text">listening</div>' +
         '</div>' +
       '</div>' +
-      '<div class="mic-icon-right" id="mic-state-' + id + '">' +
-        '<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">' + SVG_MIC_OFF + '</svg>' +
+      '<div class="right-controls">' +
+        '<span class="mod-slot"></span>' +
+        '<div class="mic-icon-right" id="mic-state-' + id + '">' +
+          '<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">' + SVG_MIC_OFF + '</svg>' +
+        '</div>' +
       '</div>';
 
     t.appendChild(row);
@@ -601,6 +902,7 @@ function addTile(id, displayName) {
     if (tn) { tn.textContent = safeName; tn.title = safeName; }
     if (av) av.textContent = getInitials(safeName);
   }
+  refreshAllBadges();
   return t;
 }
 
@@ -614,6 +916,7 @@ function setTileVideoState(id, hasVideo) {
     t.classList.remove("has-video");
     t.classList.add("video-off");
   }
+  refreshAllBadges();
 }
 
 function setTileMicState(id, isMuted) {
@@ -690,6 +993,82 @@ function syncParticipant(participant, isLocal = false) {
   setTileMicState(id, !micPub || micPub.isMuted);
 }
 
+// Qo'l ko'tarish va ustoz boshqaruvi tugmalari
+$("handBtn").onclick = async () => {
+  const lid = getLocalId();
+  if (!lid) return;
+  myHandRaised = !myHandRaised;
+  $("handBtn").classList.toggle("active", myHandRaised);
+  $("handLabel").textContent = myHandRaised ? "Tushirish" : "Qo‘l";
+
+  if (myHandRaised) {
+    if (!handQueue.includes(lid)) handQueue.push(lid);
+    if (!micEnabled && room) {
+      micEnabled = true;
+      await room.localParticipant.setMicrophoneEnabled(true);
+      setTileMicState(lid, false);
+      refreshControlButtons();
+    }
+  } else {
+    handQueue = handQueue.filter((x) => x !== lid);
+  }
+
+  refreshAllBadges();
+  refreshTeacherPanel();
+  broadcastState();
+};
+
+$("menuTeacherPanelBtn").onclick = () => {
+  $("menuDropdown").classList.remove("open");
+  panelForceOpen = !panelForceOpen;
+  refreshTeacherPanel();
+};
+
+$("claimTeacherBtn").onclick = () => {
+  const lid = getLocalId();
+  if (!lid) return;
+  teachersMap.set(lid, true);
+  panelForceOpen = true;
+  refreshAllBadges();
+  refreshTeacherPanel();
+  broadcastState();
+};
+
+$("callNextBtn").onclick = async () => {
+  if (!isLocalTeacher() || handQueue.length === 0) return;
+  const nextId = handQueue.shift();
+  const nextTile = document.getElementById("t-" + nextId);
+  const nextName = nextTile ? nextTile.querySelector(".tile-name")?.textContent : nextId;
+  refreshAllBadges();
+  refreshTeacherPanel();
+  broadcastState({ calledIdentity: nextId, calledName: nextName });
+  showTempBanner("✋ Navbat chaqirildi: " + (nextName || nextId));
+};
+
+$("clearHandsBtn").onclick = () => {
+  if (!isLocalTeacher()) return;
+  handQueue = [];
+  myHandRaised = false;
+  $("handBtn").classList.remove("active");
+  $("handLabel").textContent = "Qo‘l";
+  refreshAllBadges();
+  refreshTeacherPanel();
+  broadcastState();
+};
+
+function showTempBanner(text) {
+  $("recBanner").classList.add("active", "info-banner");
+  $("recDot").style.display = "none";
+  $("recStatusText").textContent = text;
+  $("recDownloadLink").style.display = "none";
+  setTimeout(() => {
+    if (!mediaRecorder || mediaRecorder.state !== "recording") {
+      $("recBanner").classList.remove("active", "info-banner");
+      $("recDot").style.display = "";
+    }
+  }, 3000);
+}
+
 $("menuBtn").onclick = (e) => {
   e.stopPropagation();
   $("menuDropdown").classList.toggle("open");
@@ -719,25 +1098,66 @@ $("menuExpandBtn").onclick = () => {
   toggleExpandWindow();
 };
 
-function buildInviteLink(roomName) {
+function buildTelegramInviteLink(roomName) {
   const encoded = encodeURIComponent(roomName.trim());
-  if (tg && BOT_USERNAME) {
+  if (BOT_USERNAME) {
     return "https://t.me/" + BOT_USERNAME + "?startapp=" + encoded;
   }
   return window.location.origin + "/?room=" + encoded;
 }
 
+function buildWebInviteLink(roomName) {
+  const encoded = encodeURIComponent(roomName.trim());
+  return window.location.origin + "/?room=" + encoded;
+}
+
+async function copyTextSafe(text, btnEl, okText, restoreText) {
+  try {
+    await navigator.clipboard.writeText(text);
+    if (btnEl) {
+      btnEl.textContent = okText;
+      setTimeout(() => { btnEl.textContent = restoreText; }, 1800);
+    }
+  } catch {
+    prompt("Havolani nusxalab oling:", text);
+  }
+}
+
 $("menuCopyBtn").onclick = async () => {
   $("menuDropdown").classList.remove("open");
   if (!currentRoomName) return;
-  const inviteLink = buildInviteLink(currentRoomName);
-  try {
-    await navigator.clipboard.writeText(inviteLink);
-    $("menuCopyBtn").textContent = "✅ Silka nusxalandi!";
-    setTimeout(() => { $("menuCopyBtn").textContent = "🔗 Taklif silkani nusxalash"; }, 1800);
-  } catch {
-    prompt("Havolani nusxalab yuboring:", inviteLink);
-  }
+  await copyTextSafe(
+    buildTelegramInviteLink(currentRoomName),
+    $("menuCopyBtn"),
+    "✅ Telegram silka nusxalandi!",
+    "🔗 Telegram taklif silka"
+  );
+};
+
+$("menuCopyWebBtn").onclick = async () => {
+  $("menuDropdown").classList.remove("open");
+  if (!currentRoomName) return;
+  await copyTextSafe(
+    buildWebInviteLink(currentRoomName),
+    $("menuCopyWebBtn"),
+    "✅ Kompyuter linki nusxalandi!",
+    "💻 Kompyuterdan kirish linki"
+  );
+};
+
+$("menuShareGroupBtn").onclick = async () => {
+  $("menuDropdown").classList.remove("open");
+  if (!currentRoomName) return;
+  const shareText =
+    "📚 Dars boshlandi: " + currentRoomName + "\n" +
+    "📱 Telegramdan kirish: " + buildTelegramInviteLink(currentRoomName) + "\n" +
+    "💻 Kompyuterdan kirish: " + buildWebInviteLink(currentRoomName);
+  await copyTextSafe(
+    shareText,
+    $("menuShareGroupBtn"),
+    "✅ Guruh matni nusxalandi!",
+    "📢 Guruh/kanalga yuborish matni"
+  );
 };
 
 function formatTime(sec) {
@@ -759,15 +1179,42 @@ function blobToBase64(blob) {
   });
 }
 
-async function sendAudioToBot(blob, fileName, durationStr) {
-  const chatId = user && user.id ? user.id : null;
+function triggerLocalDownload(blob, fileName) {
+  if (lastAudioObjectUrl) {
+    URL.revokeObjectURL(lastAudioObjectUrl);
+  }
+  const url = URL.createObjectURL(blob);
+  lastAudioObjectUrl = url;
+
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = fileName;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+
+  const dlBtn = $("recDownloadLink");
+  dlBtn.href = url;
+  dlBtn.download = fileName;
+  dlBtn.style.display = "inline-block";
+}
+
+async function deliverRecordedAudio(blob, fileName, durationStr) {
+  triggerLocalDownload(blob, fileName);
+
+  const targetChatId = (user && user.id) ? user.id : (ADMIN_CHAT_ID || null);
+  $("recBanner").classList.remove("info-banner");
   $("recBanner").classList.add("active");
-  $("recStatusText").textContent = "Ovoz botga yuborilmoqda...";
+  $("recDot").style.display = "none";
+
+  if (!targetChatId) {
+    $("recStatusText").textContent = "✅ Ovoz yozildi (" + durationStr + ") va qurilmaga yuklandi!";
+    return;
+  }
+
+  $("recStatusText").textContent = "Ovoz Telegram’ga yuborilmoqda...";
 
   try {
-    if (!chatId) {
-      throw new Error("Telegram foydalanuvchi ID aniqlanmadi");
-    }
     const audioBase64 = await blobToBase64(blob);
     const res = await fetch("/api/upload-audio", {
       method: "POST",
@@ -775,32 +1222,19 @@ async function sendAudioToBot(blob, fileName, durationStr) {
       body: JSON.stringify({
         audioBase64,
         fileName,
-        chatId,
+        chatId: targetChatId,
         roomName: currentRoomName,
         duration: durationStr
       })
     });
     const data = await res.json();
     if (!res.ok || !data.ok) {
-      throw new Error(data.error || "Botga yuborib bo'lmadi");
+      throw new Error(data.error || "Bot javob bermadi");
     }
-    $("recStatusText").textContent = "✅ Ovozli yozuv botga yuborildi!";
+    $("recStatusText").textContent = "✅ Ovoz Telegram’ga yuborildi va fayl tayyor!";
   } catch (err) {
-    console.error("Bot upload error:", err);
-    $("recStatusText").textContent = "⚠️ Botga yuborilmadi (" + err.message + "), fayl saqlandi";
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = fileName;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 5000);
-  } finally {
-    setTimeout(() => {
-      $("recBanner").classList.remove("active");
-      $("recStatusText").innerHTML = 'Ovoz yozilmoqda: <b id="recTimer">00:00</b>';
-    }, 3500);
+    console.warn("Bot upload fallback:", err);
+    $("recStatusText").textContent = "✅ Ovoz fayli tayyor (" + durationStr + ") — yuklab olindi";
   }
 }
 
@@ -847,7 +1281,7 @@ async function startRecording() {
     const finalDuration = formatTime(recSeconds);
     const blob = new Blob(recordedChunks, { type: mediaRecorder.mimeType || "audio/webm" });
     const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
-    const fileName = (currentRoomName || "videochat") + "-" + stamp + ".webm";
+    const fileName = (currentRoomName || "dars") + "-" + stamp + ".webm";
 
     if (audioCtx) {
       audioCtx.close().catch(() => {});
@@ -855,14 +1289,17 @@ async function startRecording() {
       audioDest = null;
     }
 
-    await sendAudioToBot(blob, fileName, finalDuration);
+    await deliverRecordedAudio(blob, fileName, finalDuration);
   };
 
   mediaRecorder.start();
   recSeconds = 0;
+  $("recDownloadLink").style.display = "none";
+  $("recBanner").classList.remove("info-banner");
+  $("recDot").style.display = "";
   $("recStatusText").innerHTML = 'Ovoz yozilmoqda: <b id="recTimer">00:00</b>';
   $("recBanner").classList.add("active");
-  $("menuRecBtn").textContent = "⏹️ To'xtatish va botga yuborish";
+  $("menuRecBtn").textContent = "⏹️ To‘xtatish va ovozni olish";
   $("menuRecBtn").classList.add("recording-item");
 
   recInterval = setInterval(() => {
@@ -877,7 +1314,7 @@ function stopRecording() {
     clearInterval(recInterval);
     recInterval = null;
   }
-  $("menuRecBtn").textContent = "⏺️ Ovoz yozishni boshlash";
+  $("menuRecBtn").textContent = "⏺️ Darsni yozishni boshlash";
   $("menuRecBtn").classList.remove("recording-item");
 
   if (mediaRecorder && mediaRecorder.state !== "inactive") {
@@ -921,7 +1358,7 @@ async function joinRoom() {
     const res = await fetch("/api/token", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ room: rname, name })
+      body: JSON.stringify({ room: rname, name, role: selectedInitialRole })
     });
 
     let data;
@@ -939,9 +1376,50 @@ async function joinRoom() {
       throw new Error("Server noto'g'ri LiveKit manzili yoki token qaytardi");
     }
 
+    teachersMap.clear();
+    handQueue = [];
+    myHandRaised = false;
+    panelForceOpen = selectedInitialRole === "teacher";
+
     room = new LivekitClient.Room({
       adaptiveStream: true,
       dynacast: true
+    });
+
+    room.on(LivekitClient.RoomEvent.DataReceived, (payload) => {
+      try {
+        const msg = JSON.parse(decoder.decode(payload));
+        if (msg && msg.type === "ROOM_SYNC") {
+          teachersMap.clear();
+          (msg.teachers || []).forEach((tid) => teachersMap.set(tid, true));
+          handQueue = Array.isArray(msg.queue) ? msg.queue.slice() : [];
+
+          const lid = getLocalId();
+          myHandRaised = lid ? handQueue.includes(lid) : false;
+          $("handBtn").classList.toggle("active", myHandRaised);
+          $("handLabel").textContent = myHandRaised ? "Tushirish" : "Qo‘l";
+
+          if (msg.calledIdentity === lid) {
+            showTempBanner("✋ Ustoz sizga navbat berdi! Mikrofon yoqildi.");
+            if (room && !micEnabled) {
+              micEnabled = true;
+              room.localParticipant.setMicrophoneEnabled(true).catch(() => {});
+              setTileMicState(lid, false);
+              refreshControlButtons();
+            }
+          }
+
+          if (msg.kickIdentity === lid && room) {
+            room.disconnect();
+            return;
+          }
+
+          refreshAllBadges();
+          refreshTeacherPanel();
+        }
+      } catch (e) {
+        console.warn("Data parse error:", e);
+      }
     });
 
     room.on(LivekitClient.RoomEvent.TrackSubscribed, (track, pub, p) => {
@@ -980,17 +1458,27 @@ async function joinRoom() {
     room.on(LivekitClient.RoomEvent.ParticipantConnected, (p) => {
       syncParticipant(p, false);
       updateParticipantCount();
+      if (isLocalTeacher()) {
+        broadcastState();
+      }
     });
 
     room.on(LivekitClient.RoomEvent.ParticipantDisconnected, (p) => {
       const t = document.getElementById("t-" + p.identity);
       if (t) t.remove();
+      handQueue = handQueue.filter((x) => x !== p.identity);
       updateParticipantCount();
+      refreshAllBadges();
+      refreshTeacherPanel();
     });
 
     room.on(LivekitClient.RoomEvent.Disconnected, leave);
 
     await room.connect(url, token);
+
+    if (selectedInitialRole === "teacher") {
+      teachersMap.set(room.localParticipant.identity, true);
+    }
 
     micEnabled = true;
     camEnabled = false;
@@ -1005,7 +1493,10 @@ async function joinRoom() {
     syncParticipant(room.localParticipant, true);
     room.remoteParticipants.forEach((p) => syncParticipant(p, false));
     updateParticipantCount();
+    refreshAllBadges();
+    refreshTeacherPanel();
     refreshControlButtons();
+    broadcastState();
   } catch (e) {
     console.error(e);
     let msg = e && e.message ? e.message : String(e);
@@ -1090,6 +1581,12 @@ function leave() {
   room = null;
   screenEnabled = false;
   camEnabled = false;
+  myHandRaised = false;
+  handQueue = [];
+  teachersMap.clear();
+  $("handBtn").classList.remove("active");
+  $("handLabel").textContent = "Qo‘l";
+  $("teacherPanel").classList.remove("visible");
   $("call").style.display = "none";
   $("join").style.display = "flex";
   $("grid").innerHTML = "";
