@@ -765,7 +765,6 @@
 <script>
 const BOT_USERNAME = "darsvideochati_bot";
 const ADMIN_CHAT_ID = "9152309447";
-// Faqat shu 2 ta Telegram ID har doim Owner sifatida kiradi:
 const ALLOWED_OWNER_IDS = ["9152309447", "8259169140"];
 
 const tg = window.Telegram && window.Telegram.WebApp ? window.Telegram.WebApp : null;
@@ -793,7 +792,6 @@ if (user && user.first_name) {
   }
 }
 
-// Har bir tugma bosilganda chiqadigan ovoz (Web Audio API)
 let uiSoundCtx = null;
 function playClickSound() {
   try {
@@ -848,6 +846,10 @@ let micEnabled = true;
 let camEnabled = false;
 let screenEnabled = false;
 let currentRoomName = "";
+
+// Tizim / ekran audiosini LiveKit'ga yuborish uchun holat
+let sharedAudioTrack = null;
+let sharedAudioPublication = null;
 
 const ownerIdentities = new Set();
 const adminsSet = new Set();
@@ -1011,7 +1013,6 @@ function openProfileSheet(pid) {
     return;
   }
 
-  // 1. Gapirishga ruxsat berish / ruxsatni olish
   const speakBtn = document.createElement("button");
   speakBtn.type = "button";
   speakBtn.className = "sheet-action-btn allow-speak";
@@ -1046,7 +1047,6 @@ function openProfileSheet(pid) {
   };
   container.appendChild(speakBtn);
 
-  // 2. Admin tayinlash / olish (faqat Owner boshqara oladi)
   if (amOwner && !isTargetOwner && pid !== localId) {
     const adminBtn = document.createElement("button");
     adminBtn.type = "button";
@@ -1077,7 +1077,6 @@ function openProfileSheet(pid) {
     container.appendChild(adminBtn);
   }
 
-  // 3. Xonadan chiqarib yuborish
   if (!isTargetOwner && pid !== localId) {
     const kickBtn = document.createElement("button");
     kickBtn.type = "button";
@@ -1202,7 +1201,10 @@ function attach(track, participant) {
   } else if (track.kind === "audio") {
     if (!participant.isLocal) {
       const audioEl = track.attach();
+      audioEl.autoplay = true;
+      audioEl.playsInline = true;
       document.body.appendChild(audioEl);
+      audioEl.play().catch(() => {});
     }
     hookTrackIntoRecorder(track);
   }
@@ -1238,6 +1240,38 @@ function syncParticipant(participant, isLocal = false) {
 
   const micPub = participant.getTrackPublication(LivekitClient.Track.Source.Microphone);
   setTileMicState(id, !micPub || micPub.isMuted);
+}
+
+// Tizim / ekran audiosini LiveKit'ga alohida ulash
+async function publishSystemScreenAudio(audioTracks) {
+  if (!room || !room.localParticipant) return;
+  await unpublishSystemScreenAudio();
+
+  if (!audioTracks || audioTracks.length === 0) return;
+  const sysMediaTrack = audioTracks[0];
+  try {
+    sharedAudioTrack = new LivekitClient.LocalAudioTrack(sysMediaTrack, undefined, false);
+    sharedAudioPublication = await room.localParticipant.publishTrack(sharedAudioTrack, {
+      name: "screen-system-audio",
+      source: LivekitClient.Track.Source.ScreenShareAudio
+    });
+    hookTrackIntoRecorder(sharedAudioTrack);
+  } catch (err) {
+    console.warn("System audio publish error:", err);
+  }
+}
+
+async function unpublishSystemScreenAudio() {
+  try {
+    if (room && room.localParticipant && sharedAudioTrack) {
+      await room.localParticipant.unpublishTrack(sharedAudioTrack);
+    }
+  } catch {}
+  if (sharedAudioTrack) {
+    try { sharedAudioTrack.stop(); } catch {}
+    sharedAudioTrack = null;
+  }
+  sharedAudioPublication = null;
 }
 
 $("handBtn").onclick = async () => {
@@ -1483,21 +1517,21 @@ async function deliverRecordedAudio(blob, fileName, durationStr) {
   return deliverRecordedMedia(blob, fileName, durationStr, "Ovoz");
 }
 
-async function startScreenRecording() {
+async function startScreenRecordingWithStream(existingStream = null) {
   if (!isLocalStaff()) return;
   if (screenRecorder && screenRecorder.state === "recording") return;
-  if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
+  if (!existingStream && (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia)) {
     showTempBanner("⚠️ Brauzer ekran yozishni qo'llab-quvvatlamaydi");
     return;
   }
 
   try {
-    screenCaptureStream = await navigator.mediaDevices.getDisplayMedia({
+    const streamSource = existingStream || await navigator.mediaDevices.getDisplayMedia({
       video: { frameRate: 24 },
       audio: true
     });
 
-    const tracks = [...screenCaptureStream.getVideoTracks(), ...screenCaptureStream.getAudioTracks()];
+    const tracks = [...streamSource.getVideoTracks(), ...streamSource.getAudioTracks()];
 
     if (room && micEnabled) {
       const localMic = room.localParticipant.getTrackPublication(LivekitClient.Track.Source.Microphone);
@@ -1524,7 +1558,7 @@ async function startScreenRecording() {
       if (e.data && e.data.size > 0) screenChunks.push(e.data);
     };
 
-    const videoTrack = screenCaptureStream.getVideoTracks()[0];
+    const videoTrack = streamSource.getVideoTracks()[0];
     if (videoTrack) {
       videoTrack.onended = () => {
         stopScreenRecording();
@@ -1539,10 +1573,10 @@ async function startScreenRecording() {
       const finalDuration = formatTime(screenRecSeconds);
       const blob = new Blob(screenChunks, { type: (screenRecorder && screenRecorder.mimeType) || "video/webm" });
 
-      if (screenCaptureStream) {
+      if (!existingStream && screenCaptureStream) {
         screenCaptureStream.getTracks().forEach((t) => t.stop());
-        screenCaptureStream = null;
       }
+      screenCaptureStream = null;
       screenRecorder = null;
 
       if (!blob.size) {
@@ -1577,6 +1611,10 @@ async function startScreenRecording() {
   }
 }
 
+async function startScreenRecording() {
+  return startScreenRecordingWithStream(screenCaptureStream);
+}
+
 function stopScreenRecording() {
   if (screenRecInterval) {
     clearInterval(screenRecInterval);
@@ -1606,6 +1644,7 @@ async function startRecording() {
 
     const localMic = room.localParticipant.getTrackPublication(LivekitClient.Track.Source.Microphone);
     if (localMic && localMic.track) hookTrackIntoRecorder(localMic.track);
+    if (sharedAudioTrack) hookTrackIntoRecorder(sharedAudioTrack);
 
     room.remoteParticipants.forEach((p) => {
       p.trackPublications.forEach((pub) => {
@@ -1983,32 +2022,107 @@ $("camBtn").onclick = async () => {
 
 $("screenBtn").onclick = async () => {
   if (!room) return;
-  try {
-    const nextState = !screenEnabled;
-    await room.localParticipant.setScreenShareEnabled(nextState);
-    screenEnabled = nextState;
-    refreshControlButtons();
+  if (!screenEnabled) {
+    try {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
+        await room.localParticipant.setScreenShareEnabled(true, { audio: true });
+        screenEnabled = true;
+        refreshControlButtons();
+        return;
+      }
 
-    if (screenEnabled && isLocalStaff()) {
-      await startScreenRecording();
-    } else {
-      stopScreenRecording();
+      const displayStream = await navigator.mediaDevices.getDisplayMedia({
+        video: { frameRate: 24 },
+        audio: true
+      });
+
+      screenCaptureStream = displayStream;
+      const videoMediaTrack = displayStream.getVideoTracks()[0];
+      const audioMediaTracks = displayStream.getAudioTracks();
+
+      if (videoMediaTrack) {
+        const localScreenVideo = new LivekitClient.LocalVideoTrack(videoMediaTrack, undefined, false);
+        await room.localParticipant.publishTrack(localScreenVideo, {
+          name: "screen-share",
+          source: LivekitClient.Track.Source.ScreenShare
+        });
+        const lid = getLocalId();
+        const t = addTile(lid, room.localParticipant.name || lid);
+        const oldVideo = t.querySelector("video");
+        if (oldVideo) oldVideo.remove();
+        const vidEl = document.createElement("video");
+        vidEl.srcObject = new MediaStream([videoMediaTrack]);
+        vidEl.autoplay = true;
+        vidEl.muted = true;
+        vidEl.playsInline = true;
+        t.prepend(vidEl);
+        setTileVideoState(lid, true);
+
+        videoMediaTrack.onended = async () => {
+          await stopScreenShareAndSystemAudio();
+        };
+      }
+
+      if (audioMediaTracks.length > 0) {
+        await publishSystemScreenAudio(audioMediaTracks);
+        showTempBanner("🔊 Ekran va tizim ovozi (ashula) o‘quvchilarga ulashildi");
+      } else {
+        showTempBanner("⚠️ Ekran ulashildi, lekin tizim/tab ovozi tanlanmadi (Share tab/system audio ni yoqing)");
+      }
+
+      screenEnabled = true;
+      refreshControlButtons();
+
+      if (isLocalStaff()) {
+        await startScreenRecordingWithStream(displayStream);
+      }
+    } catch (e) {
+      await stopScreenShareAndSystemAudio();
+      console.error("Screen share error:", e);
     }
-  } catch (e) {
-    screenEnabled = false;
-    stopScreenRecording();
-    refreshControlButtons();
-    console.error("Screen share error:", e);
+  } else {
+    await stopScreenShareAndSystemAudio();
   }
 };
+
+async function stopScreenShareAndSystemAudio() {
+  stopScreenRecording();
+  await unpublishSystemScreenAudio();
+
+  try {
+    if (room && room.localParticipant) {
+      const scrPub = room.localParticipant.getTrackPublication(LivekitClient.Track.Source.ScreenShare);
+      if (scrPub && scrPub.track) {
+        await room.localParticipant.unpublishTrack(scrPub.track);
+        scrPub.track.stop();
+      }
+    }
+  } catch {}
+
+  if (screenCaptureStream) {
+    screenCaptureStream.getTracks().forEach((t) => t.stop());
+    screenCaptureStream = null;
+  }
+
+  const lid = getLocalId();
+  if (lid) {
+    const t = document.getElementById("t-" + lid);
+    if (t) {
+      const oldVideo = t.querySelector("video");
+      if (oldVideo) oldVideo.remove();
+    }
+    setTileVideoState(lid, false);
+  }
+
+  screenEnabled = false;
+  refreshControlButtons();
+}
 
 $("leaveBtn").onclick = async () => {
   if (mediaRecorder && mediaRecorder.state === "recording") {
     stopRecording();
   }
-  if (screenRecorder && screenRecorder.state === "recording") {
-    stopScreenRecording();
-  }
+  await stopScreenShareAndSystemAudio();
   if (room) {
     await room.disconnect();
   } else {
@@ -2020,8 +2134,11 @@ function leave() {
   if (mediaRecorder && mediaRecorder.state === "recording") {
     stopRecording();
   }
-  if (screenRecorder && screenRecorder.state === "recording") {
-    stopScreenRecording();
+  stopScreenRecording();
+  unpublishSystemScreenAudio();
+  if (screenCaptureStream) {
+    screenCaptureStream.getTracks().forEach((t) => t.stop());
+    screenCaptureStream = null;
   }
   closeProfileSheet();
   room = null;
