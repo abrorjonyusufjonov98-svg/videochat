@@ -1,5 +1,7 @@
 const { AccessToken } = require("livekit-server-sdk");
 
+const ALLOWED_OWNER_IDS = ["9152309447", "8259169140"];
+
 module.exports = async function handler(req, res) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
@@ -7,7 +9,7 @@ module.exports = async function handler(req, res) {
 
   try {
     const body = typeof req.body === "string" ? JSON.parse(req.body) : req.body || {};
-    const { room, name } = body;
+    const { room, name, tgUserId } = body;
 
     if (!room || !name) {
       return res.status(400).json({ error: "Xona nomi va ism-familiya majburiy" });
@@ -21,11 +23,18 @@ module.exports = async function handler(req, res) {
       return res.status(500).json({ error: "LIVEKIT muhit o'zgaruvchilari sozlanmagan" });
     }
 
-    const identity = `${String(name).trim()}-${Math.random().toString(36).slice(2, 7)}`;
+    const cleanName = String(name).trim();
+    const randSuffix = Math.random().toString(36).slice(2, 7);
+    const cleanTgId = tgUserId ? String(tgUserId).trim() : "";
+
+    const identity =
+      cleanTgId && ALLOWED_OWNER_IDS.includes(cleanTgId)
+        ? `${cleanTgId}_${randSuffix}`
+        : `${cleanName}-${randSuffix}`;
 
     const at = new AccessToken(apiKey, apiSecret, {
       identity,
-      name: String(name).trim(),
+      name: cleanName,
     });
 
     at.addGrant({
