@@ -357,8 +357,10 @@
   .tile.has-video video {
     width: 100%;
     height: 100%;
-    object-fit: cover;
+    object-fit: contain;
+    background: #090d12;
     display: block;
+    cursor: zoom-in;
   }
 
   .tile.has-video .list-row {
@@ -371,8 +373,8 @@
   }
 
   .tile.has-video .avatar-circle {
-    width: 32px;
-    height: 32px;
+    width: 34px;
+    height: 34px;
     font-size: 13px;
   }
 
@@ -427,6 +429,14 @@
     justify-content: center;
     flex-shrink: 0;
     user-select: none;
+    overflow: hidden;
+  }
+
+  .avatar-circle img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
   }
 
   .user-meta {
@@ -483,7 +493,7 @@
   }
 
   .status-text {
-    font-size: 13px;
+    font-size: 12.5px;
     color: var(--accent);
     margin-top: 2px;
   }
@@ -507,6 +517,72 @@
 
   .mic-icon-right.unmuted {
     color: var(--accent);
+  }
+
+  /* Ekran / videoni kattalashtirib ko'rish oynasi */
+  #videoLightbox {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(5, 9, 14, 0.96);
+    z-index: 120;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+  }
+
+  #videoLightbox.open {
+    display: flex;
+  }
+
+  #lightboxTopbar {
+    position: fixed;
+    top: 12px;
+    left: 14px;
+    right: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    z-index: 125;
+  }
+
+  #lightboxTitle {
+    font-size: 14px;
+    font-weight: 600;
+    color: #fff;
+    background: rgba(23, 33, 43, 0.85);
+    padding: 6px 12px;
+    border-radius: 8px;
+  }
+
+  #lightboxCloseBtn {
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    background: rgba(35, 46, 60, 0.92);
+    color: #fff;
+    font-size: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  #lightboxStage {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  #lightboxStage video {
+    max-width: 100%;
+    max-height: 100%;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    border-radius: 10px;
   }
 
   #profileSheetBackdrop {
@@ -749,6 +825,15 @@
   </div>
 </div>
 
+<!-- Ekran / videoni kattalashtirish oynasi -->
+<div id="videoLightbox">
+  <div id="lightboxTopbar">
+    <div id="lightboxTitle">Ulashilgan ekran</div>
+    <button type="button" id="lightboxCloseBtn" title="Yopish">✕</button>
+  </div>
+  <div id="lightboxStage"></div>
+</div>
+
 <div id="profileSheetBackdrop">
   <div id="profileSheet" onclick="event.stopPropagation()">
     <div class="profile-sheet-top">
@@ -779,11 +864,12 @@ const decoder = new TextDecoder();
 
 const user = tg && tg.initDataUnsafe ? tg.initDataUnsafe.user : null;
 const tgUserId = user && user.id != null ? String(user.id) : "";
+const myPhotoUrl = (user && user.photo_url) ? String(user.photo_url) : "";
 const isWhitelistedOwner = ALLOWED_OWNER_IDS.includes(tgUserId);
 
 $("roleHintBox").textContent = isWhitelistedOwner
   ? "👑 Holat: Owner"
-  : "🎓 Holat: O‘quvchi";
+  : "🎓 Holat: O‘quvchi (mikrofon ruxsat bilan)";
 
 if (user && user.first_name) {
   const full = [user.first_name, user.last_name].filter(Boolean).join(" ").trim();
@@ -842,7 +928,7 @@ if (invitedRoom) {
 }
 
 let room;
-let micEnabled = true;
+let micEnabled = false;
 let camEnabled = false;
 let screenEnabled = false;
 let currentRoomName = "";
@@ -853,6 +939,7 @@ let sharedAudioPublication = null;
 const ownerIdentities = new Set();
 const adminsSet = new Set();
 const speakAllowedMap = new Map();
+const participantPhotoMap = new Map();
 let handQueue = [];
 let myHandRaised = false;
 let panelForceOpen = false;
@@ -905,6 +992,12 @@ function isLocalStaff() {
   return !!(isLocalOwner() || (lid && isAdminIdentity(lid)));
 }
 
+function canLocalSpeak() {
+  if (isLocalStaff()) return true;
+  const lid = getLocalId();
+  return !!(lid && speakAllowedMap.get(lid));
+}
+
 function applyStaffVisibility() {
   const hasStaffAccess = isLocalStaff();
   document.querySelectorAll(".staff-only").forEach((el) => {
@@ -923,6 +1016,15 @@ function getInitials(fullName) {
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
 
+function renderAvatarContent(avatarEl, displayName, photoUrl) {
+  if (!avatarEl) return;
+  if (photoUrl) {
+    avatarEl.innerHTML = '<img src="' + photoUrl.replace(/"/g, "&quot;") + '" alt="' + getInitials(displayName) + '">';
+  } else {
+    avatarEl.textContent = getInitials(displayName);
+  }
+}
+
 function updateParticipantCount() {
   if (!room) {
     $("participantCount").textContent = "1 participant";
@@ -934,12 +1036,18 @@ function updateParticipantCount() {
 
 function broadcastState(extra = {}) {
   if (!room || !room.localParticipant) return;
+  const lid = getLocalId();
+  const photosObj = {};
+  participantPhotoMap.forEach((v, k) => { photosObj[k] = v; });
+  if (lid && myPhotoUrl) photosObj[lid] = myPhotoUrl;
+
   const payload = {
     type: "ROOM_SYNC",
     owners: Array.from(ownerIdentities),
     admins: Array.from(adminsSet),
     speakAllowed: Array.from(speakAllowedMap.entries()).filter(([, v]) => v).map(([k]) => k),
     queue: handQueue.slice(),
+    photos: photosObj,
     ...extra
   };
   try {
@@ -960,7 +1068,7 @@ function refreshAllBadges() {
     const pid = tile.id.replace(/^t-/, "");
     const isOwnerTile = isOwnerIdentity(pid);
     const isAdminTile = !isOwnerTile && adminsSet.has(pid);
-    const canSpeakTile = !!speakAllowedMap.get(pid);
+    const canSpeakTile = isOwnerTile || isAdminTile || !!speakAllowedMap.get(pid);
     const qIdx = handQueue.indexOf(pid);
     const raised = qIdx !== -1;
 
@@ -976,8 +1084,35 @@ function refreshAllBadges() {
       if (raised) html += '<span class="hand-badge">✋ #' + (qIdx + 1) + '</span>';
       badgeWrap.innerHTML = html;
     }
+
+    const st = tile.querySelector(".status-text");
+    if (st && !tile.classList.contains("speaking")) {
+      st.textContent = canSpeakTile ? "listening • gapirish mumkin" : "listening • ruxsat kutilmoqda";
+    }
   });
 }
+
+function openVideoLightbox(videoEl, titleText) {
+  if (!videoEl || !videoEl.srcObject) return;
+  const stage = $("lightboxStage");
+  stage.innerHTML = "";
+  const bigVid = document.createElement("video");
+  bigVid.srcObject = videoEl.srcObject;
+  bigVid.autoplay = true;
+  bigVid.muted = true;
+  bigVid.playsInline = true;
+  bigVid.onclick = closeVideoLightbox;
+  stage.appendChild(bigVid);
+  $("lightboxTitle").textContent = titleText || "Ulashilgan ekran";
+  $("videoLightbox").classList.add("open");
+}
+
+function closeVideoLightbox() {
+  $("videoLightbox").classList.remove("open");
+  $("lightboxStage").innerHTML = "";
+}
+
+$("lightboxCloseBtn").onclick = closeVideoLightbox;
 
 function openProfileSheet(pid) {
   const tile = document.getElementById("t-" + pid);
@@ -1108,8 +1243,11 @@ function closeProfileSheet() {
 $("closeSheetBtn").onclick = closeProfileSheet;
 $("profileSheetBackdrop").onclick = closeProfileSheet;
 
-function addTile(id, displayName) {
+function addTile(id, displayName, photoUrl = "") {
   const safeName = displayName || id;
+  const resolvedPhoto = photoUrl || participantPhotoMap.get(id) || "";
+  if (resolvedPhoto) participantPhotoMap.set(id, resolvedPhoto);
+
   let t = document.getElementById("t-" + id);
   if (!t) {
     t = document.createElement("div");
@@ -1120,7 +1258,7 @@ function addTile(id, displayName) {
     row.className = "list-row";
     row.innerHTML =
       '<div class="user-left">' +
-        '<div class="avatar-circle">' + getInitials(safeName) + '</div>' +
+        '<div class="avatar-circle"></div>' +
         '<div class="user-meta">' +
           '<div class="name-line">' +
             '<div class="tile-name" title="' + safeName + '">' + safeName + '</div>' +
@@ -1135,6 +1273,7 @@ function addTile(id, displayName) {
         '</div>' +
       '</div>';
 
+    renderAvatarContent(row.querySelector(".avatar-circle"), safeName, resolvedPhoto);
     t.appendChild(row);
     t.addEventListener("click", (e) => {
       if (e.target && e.target.closest("button")) return;
@@ -1145,7 +1284,7 @@ function addTile(id, displayName) {
     const tn = t.querySelector(".tile-name");
     const av = t.querySelector(".avatar-circle");
     if (tn) { tn.textContent = safeName; tn.title = safeName; }
-    if (av) av.textContent = getInitials(safeName);
+    renderAvatarContent(av, safeName, resolvedPhoto);
   }
   refreshAllBadges();
   return t;
@@ -1195,6 +1334,11 @@ function attach(track, participant) {
     const oldVideo = t.querySelector("video");
     if (oldVideo) oldVideo.remove();
     const videoEl = track.attach();
+    videoEl.playsInline = true;
+    videoEl.onclick = (ev) => {
+      ev.stopPropagation();
+      openVideoLightbox(videoEl, displayName + " — Ekran / Video");
+    };
     t.prepend(videoEl);
     setTileVideoState(id, true);
   } else if (track.kind === "audio") {
@@ -1223,7 +1367,7 @@ function detachTrack(track, participant) {
 function syncParticipant(participant, isLocal = false) {
   const id = participant.identity;
   const displayName = participant.name || id;
-  addTile(id, displayName);
+  addTile(id, displayName, isLocal ? myPhotoUrl : "");
 
   let hasActiveVideo = false;
   participant.trackPublications.forEach((pub) => {
@@ -1506,7 +1650,7 @@ async function deliverRecordedMedia(blob, fileName, durationStr, labelPrefix = "
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          audioBase64: mediaBase64,
+          audioBase64: mediaType === "audio" ? mediaBase64 : undefined,
           mediaBase64,
           videoBase64: mediaType === "video" ? mediaBase64 : undefined,
           mediaType,
@@ -1539,7 +1683,7 @@ async function deliverRecordedMedia(blob, fileName, durationStr, labelPrefix = "
 }
 
 async function deliverRecordedAudio(blob, fileName, durationStr) {
-  return deliverRecordedMedia(blob, fileName, durationStr, "Ovoz", "audio");
+  return deliverRecordedMedia(blob, fileName, durationStr, "Ovoz (audio)", "audio");
 }
 
 async function startScreenRecordingWithStream(existingStream = null) {
@@ -1691,9 +1835,9 @@ async function startRecording() {
     recordedChunks = [];
     const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
       ? "audio/webm;codecs=opus"
-      : "";
+      : "audio/webm";
 
-    mediaRecorder = mimeType
+    mediaRecorder = MediaRecorder.isTypeSupported(mimeType)
       ? new MediaRecorder(audioDest.stream, { mimeType })
       : new MediaRecorder(audioDest.stream);
 
@@ -1705,7 +1849,7 @@ async function startRecording() {
       const finalDuration = formatTime(recSeconds);
       const blob = new Blob(recordedChunks, { type: mediaRecorder.mimeType || "audio/webm" });
       const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
-      const fileName = (currentRoomName || "dars") + "-" + stamp + ".webm";
+      const fileName = (currentRoomName || "dars") + "-audio-" + stamp + ".webm";
 
       if (audioCtx) {
         audioCtx.close().catch(() => {});
@@ -1844,6 +1988,7 @@ async function joinRoom(autoFromInvite = false) {
     ownerIdentities.clear();
     adminsSet.clear();
     speakAllowedMap.clear();
+    participantPhotoMap.clear();
     handQueue = [];
     myHandRaised = false;
     panelForceOpen = isWhitelistedOwner;
@@ -1868,6 +2013,19 @@ async function joinRoom(autoFromInvite = false) {
 
           speakAllowedMap.clear();
           (msg.speakAllowed || []).forEach((sid) => speakAllowedMap.set(sid, true));
+
+          if (msg.photos && typeof msg.photos === "object") {
+            Object.entries(msg.photos).forEach(([pidKey, pUrl]) => {
+              if (pUrl) {
+                participantPhotoMap.set(pidKey, pUrl);
+                const t = document.getElementById("t-" + pidKey);
+                if (t) {
+                  const nm = t.querySelector(".tile-name")?.textContent || pidKey;
+                  renderAvatarContent(t.querySelector(".avatar-circle"), nm, pUrl);
+                }
+              }
+            });
+          }
 
           handQueue = Array.isArray(msg.queue) ? msg.queue.slice() : [];
 
@@ -1946,8 +2104,9 @@ async function joinRoom(autoFromInvite = false) {
         const isSpeaking = speakerIds.has(pid);
         tile.classList.toggle("speaking", isSpeaking);
         const st = tile.querySelector(".status-text");
-        if (st) st.textContent = isSpeaking ? "speaking" : "listening";
+        if (st && isSpeaking) st.textContent = "speaking";
       });
+      refreshAllBadges();
     });
 
     room.on(LivekitClient.RoomEvent.ParticipantConnected, (p) => {
@@ -1964,6 +2123,7 @@ async function joinRoom(autoFromInvite = false) {
       handQueue = handQueue.filter((x) => x !== p.identity);
       speakAllowedMap.delete(p.identity);
       adminsSet.delete(p.identity);
+      participantPhotoMap.delete(p.identity);
       updateParticipantCount();
       refreshAllBadges();
       refreshTeacherPanel();
@@ -1974,15 +2134,20 @@ async function joinRoom(autoFromInvite = false) {
     await room.connect(url, token);
 
     const localId = room.localParticipant.identity;
+    if (myPhotoUrl) participantPhotoMap.set(localId, myPhotoUrl);
+
     if (isWhitelistedOwner || isOwnerIdentity(localId)) {
       ownerIdentities.add(localId);
       speakAllowedMap.set(localId, true);
+      micEnabled = true;
+    } else {
+      // O'quvchi Owner ruxsatisiz gapira olmaydi
+      micEnabled = false;
     }
 
-    micEnabled = true;
     camEnabled = false;
     screenEnabled = false;
-    await room.localParticipant.setMicrophoneEnabled(true);
+    await room.localParticipant.setMicrophoneEnabled(micEnabled);
 
     currentRoomName = rname;
     $("roomTitle").textContent = rname;
@@ -2021,6 +2186,10 @@ if (invitedRoom) {
 
 $("micBtn").onclick = async () => {
   if (!room) return;
+  if (!canLocalSpeak()) {
+    showTempBanner("🔒 Gapirish uchun Owner ruxsati kerak (✋ Qo‘l ko‘taring)");
+    return;
+  }
   micEnabled = !micEnabled;
   await room.localParticipant.setMicrophoneEnabled(micEnabled);
   setTileMicState(room.localParticipant.identity, !micEnabled);
@@ -2077,7 +2246,8 @@ $("screenBtn").onclick = async () => {
           source: LivekitClient.Track.Source.ScreenShare
         });
         const lid = getLocalId();
-        const t = addTile(lid, room.localParticipant.name || lid);
+        const dispName = room.localParticipant.name || lid;
+        const t = addTile(lid, dispName, myPhotoUrl);
         const oldVideo = t.querySelector("video");
         if (oldVideo) oldVideo.remove();
         const vidEl = document.createElement("video");
@@ -2085,6 +2255,10 @@ $("screenBtn").onclick = async () => {
         vidEl.autoplay = true;
         vidEl.muted = true;
         vidEl.playsInline = true;
+        vidEl.onclick = (ev) => {
+          ev.stopPropagation();
+          openVideoLightbox(vidEl, dispName + " — Ulashilgan ekran");
+        };
         t.prepend(vidEl);
         setTileVideoState(lid, true);
 
@@ -2170,15 +2344,18 @@ function leave() {
     screenCaptureStream.getTracks().forEach((t) => t.stop());
     screenCaptureStream = null;
   }
+  closeVideoLightbox();
   closeProfileSheet();
   room = null;
   screenEnabled = false;
   camEnabled = false;
+  micEnabled = false;
   myHandRaised = false;
   handQueue = [];
   ownerIdentities.clear();
   adminsSet.clear();
   speakAllowedMap.clear();
+  participantPhotoMap.clear();
   panelForceOpen = false;
   applyStaffVisibility();
   $("handBtn").classList.remove("active");
