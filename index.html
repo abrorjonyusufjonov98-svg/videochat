@@ -815,7 +815,7 @@
 
     <div class="ctrl-item">
       <button id="switchCamBtn" class="ctrl-btn" type="button" title="Kamera almashtirish">🔄</button>
-      <span class="ctrl-label" id="switchCamLabel">Orqa</span>
+      <span class="ctrl-label" id="switchCamLabel">Selfi</span>
     </div>
 
     <div class="ctrl-item">
@@ -945,7 +945,7 @@ if (invitedRoom) {
 let room;
 let micEnabled = false;
 let camEnabled = false;
-let camFacingMode = "user"; // "user" = selfi/oldi kamera, "environment" = orqa/asosiy kamera
+let camFacingMode = "user"; // "user" = selfi/oldi kamera, "environment" = orqa kamera
 let screenEnabled = false;
 let currentRoomName = "";
 
@@ -1960,18 +1960,23 @@ function refreshControlButtons() {
   $("camBtn").classList.toggle("active", camEnabled);
   $("camIcon").innerHTML = camEnabled ? SVG_CAM_ON : SVG_CAM_OFF;
 
-  $("switchCamBtn").classList.toggle("active", camFacingMode === "environment");
+  $("switchCamBtn").classList.toggle("active", camFacingMode === "user");
   $("switchCamLabel").textContent = camFacingMode === "environment" ? "Selfi" : "Orqa";
 
   $("screenBtn").classList.toggle("active", screenEnabled);
 }
 
-async function applyLocalCameraTrack() {
+async function applyLocalCameraTrack(forceRestart = false) {
   if (!room || !room.localParticipant) return;
   const localId = room.localParticipant.identity;
 
+  if (forceRestart) {
+    await room.localParticipant.setCameraEnabled(false);
+    await new Promise((r) => setTimeout(r, 120));
+  }
+
   await room.localParticipant.setCameraEnabled(true, {
-    facingMode: camFacingMode
+    facingMode: { ideal: camFacingMode }
   });
 
   const camPub = room.localParticipant.getTrackPublication(LivekitClient.Track.Source.Camera);
@@ -2245,7 +2250,7 @@ $("camBtn").onclick = async () => {
 
   if (camEnabled) {
     try {
-      await applyLocalCameraTrack();
+      await applyLocalCameraTrack(false);
     } catch (e) {
       camEnabled = false;
       showTempBanner("⚠️ Kamerani yoqishda xato: " + (e.message || e));
@@ -2264,25 +2269,26 @@ $("camBtn").onclick = async () => {
 
 $("switchCamBtn").onclick = async () => {
   if (!room) return;
-  camFacingMode = camFacingMode === "user" ? "environment" : "user";
+  const nextFacing = camFacingMode === "user" ? "environment" : "user";
+  camFacingMode = nextFacing;
   refreshControlButtons();
 
   if (camEnabled) {
     try {
-      await applyLocalCameraTrack();
+      await applyLocalCameraTrack(true);
       showTempBanner(
-        camFacingMode === "environment"
-          ? "📷 Orqa kameraga o‘tkazildi"
-          : "🤳 Selfi (oldi) kameraga o‘tkazildi"
+        camFacingMode === "user"
+          ? "🤳 Oldi (selfi) kameraga o‘tkazildi"
+          : "📷 Orqa kameraga o‘tkazildi"
       );
     } catch (e) {
-      showTempBanner("⚠️ Kamerani almashtirib bo‘lmadi: " + (e.message || e));
+      showTempBanner("⚠️ Oldi kameraga o‘tib bo‘lmadi: " + (e.message || e));
     }
   } else {
     showTempBanner(
-      camFacingMode === "environment"
-        ? "📷 Keyingi yoqishda orqa kamera ishlaydi"
-        : "🤳 Keyingi yoqishda selfi kamera ishlaydi"
+      camFacingMode === "user"
+        ? "🤳 Keyingi yoqishda oldi kamera ishlaydi"
+        : "📷 Keyingi yoqishda orqa kamera ishlaydi"
     );
   }
 };
