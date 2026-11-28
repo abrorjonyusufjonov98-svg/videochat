@@ -519,7 +519,6 @@
     color: var(--accent);
   }
 
-  /* Ekran / videoni kattalashtirib ko'rish oynasi */
   #videoLightbox {
     display: none;
     position: fixed;
@@ -825,7 +824,6 @@
   </div>
 </div>
 
-<!-- Ekran / videoni kattalashtirish oynasi -->
 <div id="videoLightbox">
   <div id="lightboxTopbar">
     <div id="lightboxTitle">Ulashilgan ekran</div>
@@ -864,7 +862,15 @@ const decoder = new TextDecoder();
 
 const user = tg && tg.initDataUnsafe ? tg.initDataUnsafe.user : null;
 const tgUserId = user && user.id != null ? String(user.id) : "";
-const myPhotoUrl = (user && user.photo_url) ? String(user.photo_url) : "";
+
+const urlParams = new URLSearchParams(window.location.search);
+const savedPhoto = localStorage.getItem("vc_photo_url") || "";
+const rawPhotoUrl = (user && user.photo_url) || urlParams.get("photo") || savedPhoto || "";
+const myPhotoUrl = /^https?:\/\//i.test(rawPhotoUrl) ? rawPhotoUrl : "";
+if (myPhotoUrl) {
+  try { localStorage.setItem("vc_photo_url", myPhotoUrl); } catch {}
+}
+
 const isWhitelistedOwner = ALLOWED_OWNER_IDS.includes(tgUserId);
 
 $("roleHintBox").textContent = isWhitelistedOwner
@@ -910,8 +916,7 @@ document.addEventListener("click", (e) => {
 }, true);
 
 function getInviteRoomFromUrl() {
-  const params = new URLSearchParams(window.location.search);
-  const fromQuery = params.get("room") || params.get("tgWebAppStartParam");
+  const fromQuery = urlParams.get("room") || urlParams.get("tgWebAppStartParam");
   const fromTg = tg && tg.initDataUnsafe ? tg.initDataUnsafe.start_param : "";
   const raw = (fromTg || fromQuery || "").trim();
   if (!raw) return "";
@@ -945,7 +950,6 @@ let myHandRaised = false;
 let panelForceOpen = false;
 let activeSheetPid = null;
 
-// Audio yozish holati
 let mediaRecorder = null;
 let recordedChunks = [];
 let recSeconds = 0;
@@ -955,7 +959,6 @@ let audioDest = null;
 const connectedAudioSources = new Map();
 let lastAudioObjectUrl = null;
 
-// Ekran yozish holati
 let screenRecorder = null;
 let screenChunks = [];
 let screenCaptureStream = null;
@@ -1018,10 +1021,19 @@ function getInitials(fullName) {
 
 function renderAvatarContent(avatarEl, displayName, photoUrl) {
   if (!avatarEl) return;
-  if (photoUrl) {
-    avatarEl.innerHTML = '<img src="' + photoUrl.replace(/"/g, "&quot;") + '" alt="' + getInitials(displayName) + '">';
+  const initials = getInitials(displayName);
+  if (photoUrl && /^https?:\/\//i.test(photoUrl)) {
+    const img = document.createElement("img");
+    img.src = photoUrl;
+    img.alt = initials;
+    img.referrerPolicy = "no-referrer";
+    img.onerror = () => {
+      avatarEl.textContent = initials;
+    };
+    avatarEl.innerHTML = "";
+    avatarEl.appendChild(img);
   } else {
-    avatarEl.textContent = getInitials(displayName);
+    avatarEl.textContent = initials;
   }
 }
 
@@ -1087,7 +1099,9 @@ function refreshAllBadges() {
 
     const st = tile.querySelector(".status-text");
     if (st && !tile.classList.contains("speaking")) {
-      st.textContent = canSpeakTile ? "listening • gapirish mumkin" : "listening • ruxsat kutilmoqda";
+      const roleTxt = isOwnerTile ? "Owner" : (isAdminTile ? "Admin" : "O‘quvchi");
+      const speakTxt = canSpeakTile ? "gapirish mumkin" : "ruxsat kutilmoqda";
+      st.textContent = roleTxt + " • " + speakTxt;
     }
   });
 }
@@ -2112,9 +2126,7 @@ async function joinRoom(autoFromInvite = false) {
     room.on(LivekitClient.RoomEvent.ParticipantConnected, (p) => {
       syncParticipant(p, false);
       updateParticipantCount();
-      if (isLocalStaff()) {
-        broadcastState();
-      }
+      broadcastState();
     });
 
     room.on(LivekitClient.RoomEvent.ParticipantDisconnected, (p) => {
@@ -2141,7 +2153,6 @@ async function joinRoom(autoFromInvite = false) {
       speakAllowedMap.set(localId, true);
       micEnabled = true;
     } else {
-      // O'quvchi Owner ruxsatisiz gapira olmaydi
       micEnabled = false;
     }
 
