@@ -363,6 +363,10 @@
     cursor: zoom-in;
   }
 
+  .tile.has-video video.cam-natural {
+    transform: scaleX(1);
+  }
+
   .tile.has-video .list-row {
     position: absolute;
     left: 0;
@@ -1348,6 +1352,7 @@ function attach(track, participant) {
     const oldVideo = t.querySelector("video");
     if (oldVideo) oldVideo.remove();
     const videoEl = track.attach();
+    videoEl.classList.add("cam-natural");
     videoEl.playsInline = true;
     videoEl.onclick = (ev) => {
       ev.stopPropagation();
