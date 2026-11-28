@@ -676,8 +676,8 @@
     display: flex;
     justify-content: space-around;
     align-items: flex-start;
-    gap: 6px;
-    padding: 12px 12px calc(24px + env(safe-area-inset-bottom, 0px));
+    gap: 4px;
+    padding: 12px 10px calc(24px + env(safe-area-inset-bottom, 0px));
     background: var(--bg);
     flex-shrink: 0;
     position: relative;
@@ -689,24 +689,24 @@
     flex-direction: column;
     align-items: center;
     gap: 7px;
-    min-width: 56px;
+    min-width: 50px;
   }
 
   .ctrl-btn {
-    width: 52px;
-    height: 52px;
+    width: 50px;
+    height: 50px;
     border-radius: 50%;
     background: var(--btn-dark);
     color: #ffffff;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 20px;
+    font-size: 19px;
   }
 
   .ctrl-btn svg {
-    width: 24px;
-    height: 24px;
+    width: 23px;
+    height: 23px;
     fill: currentColor;
   }
 
@@ -721,6 +721,7 @@
   }
 
   #camBtn.active,
+  #switchCamBtn.active,
   #screenBtn.active {
     background: #2d5c8a;
     box-shadow: 0 0 14px rgba(62, 166, 255, 0.35);
@@ -736,7 +737,7 @@
   }
 
   .ctrl-label {
-    font-size: 11.5px;
+    font-size: 11px;
     color: #d0dae5;
     user-select: none;
   }
@@ -810,6 +811,11 @@
         <svg id="camIcon" viewBox="0 0 24 24"><path d="M21 6.5l-4 4V7c0-.55-.45-1-1-1H9.82L21 17.18V6.5zM3.27 2L2 3.27 4.73 6H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.21 0 .39-.08.54-.18L19.73 21 21 19.73 3.27 2z"/></svg>
       </button>
       <span class="ctrl-label">Video</span>
+    </div>
+
+    <div class="ctrl-item">
+      <button id="switchCamBtn" class="ctrl-btn" type="button" title="Kamera almashtirish">🔄</button>
+      <span class="ctrl-label" id="switchCamLabel">Orqa</span>
     </div>
 
     <div class="ctrl-item">
@@ -939,6 +945,7 @@ if (invitedRoom) {
 let room;
 let micEnabled = false;
 let camEnabled = false;
+let camFacingMode = "user"; // "user" = selfi/oldi kamera, "environment" = orqa/asosiy kamera
 let screenEnabled = false;
 let currentRoomName = "";
 
@@ -1953,7 +1960,25 @@ function refreshControlButtons() {
   $("camBtn").classList.toggle("active", camEnabled);
   $("camIcon").innerHTML = camEnabled ? SVG_CAM_ON : SVG_CAM_OFF;
 
+  $("switchCamBtn").classList.toggle("active", camFacingMode === "environment");
+  $("switchCamLabel").textContent = camFacingMode === "environment" ? "Selfi" : "Orqa";
+
   $("screenBtn").classList.toggle("active", screenEnabled);
+}
+
+async function applyLocalCameraTrack() {
+  if (!room || !room.localParticipant) return;
+  const localId = room.localParticipant.identity;
+
+  await room.localParticipant.setCameraEnabled(true, {
+    facingMode: camFacingMode
+  });
+
+  const camPub = room.localParticipant.getTrackPublication(LivekitClient.Track.Source.Camera);
+  if (camPub && camPub.track) {
+    attach(camPub.track, room.localParticipant);
+    setTileVideoState(localId, true);
+  }
 }
 
 async function joinRoom(autoFromInvite = false) {
@@ -2162,6 +2187,7 @@ async function joinRoom(autoFromInvite = false) {
     }
 
     camEnabled = false;
+    camFacingMode = "user";
     screenEnabled = false;
     await room.localParticipant.setMicrophoneEnabled(micEnabled);
 
@@ -2215,16 +2241,17 @@ $("micBtn").onclick = async () => {
 $("camBtn").onclick = async () => {
   if (!room) return;
   camEnabled = !camEnabled;
-  await room.localParticipant.setCameraEnabled(camEnabled);
-
   const localId = room.localParticipant.identity;
+
   if (camEnabled) {
-    const camPub = room.localParticipant.getTrackPublication(LivekitClient.Track.Source.Camera);
-    if (camPub && camPub.track) {
-      attach(camPub.track, room.localParticipant);
-      setTileVideoState(localId, true);
+    try {
+      await applyLocalCameraTrack();
+    } catch (e) {
+      camEnabled = false;
+      showTempBanner("⚠️ Kamerani yoqishda xato: " + (e.message || e));
     }
   } else {
+    await room.localParticipant.setCameraEnabled(false);
     const t = document.getElementById("t-" + localId);
     if (t) {
       const oldVideo = t.querySelector("video");
@@ -2235,21 +2262,68 @@ $("camBtn").onclick = async () => {
   refreshControlButtons();
 };
 
+$("switchCamBtn").onclick = async () => {
+  if (!room) return;
+  camFacingMode = camFacingMode === "user" ? "environment" : "user";
+  refreshControlButtons();
+
+  if (camEnabled) {
+    try {
+      await applyLocalCameraTrack();
+      showTempBanner(
+        camFacingMode === "environment"
+          ? "📷 Orqa kameraga o‘tkazildi"
+          : "🤳 Selfi (oldi) kameraga o‘tkazildi"
+      );
+    } catch (e) {
+      showTempBanner("⚠️ Kamerani almashtirib bo‘lmadi: " + (e.message || e));
+    }
+  } else {
+    showTempBanner(
+      camFacingMode === "environment"
+        ? "📷 Keyingi yoqishda orqa kamera ishlaydi"
+        : "🤳 Keyingi yoqishda selfi kamera ishlaydi"
+    );
+  }
+};
+
+async function acquireDisplayStreamForDevice() {
+  if (!navigator.mediaDevices || typeof navigator.mediaDevices.getDisplayMedia !== "function") {
+    return null;
+  }
+  try {
+    return await navigator.mediaDevices.getDisplayMedia({
+      video: { frameRate: 24 },
+      audio: true
+    });
+  } catch (errWithAudio) {
+    try {
+      return await navigator.mediaDevices.getDisplayMedia({
+        video: { frameRate: 24 },
+        audio: false
+      });
+    } catch (errNoAudio) {
+      throw errNoAudio || errWithAudio;
+    }
+  }
+}
+
 $("screenBtn").onclick = async () => {
   if (!room) return;
   if (!screenEnabled) {
     try {
-      if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
-        await room.localParticipant.setScreenShareEnabled(true, { audio: true });
-        screenEnabled = true;
-        refreshControlButtons();
+      const displayStream = await acquireDisplayStreamForDevice();
+
+      if (!displayStream) {
+        const webUrl = buildWebInviteLink(currentRoomName || $("room").value.trim() || "dars");
+        showTempBanner("⚠️ Telefon ichki oynasida ekran ulashish cheklangan — Chrome/Safari da oching");
+        if (tg && typeof tg.openLink === "function") {
+          setTimeout(() => {
+            try { tg.openLink(webUrl, { try_instant_view: false }); } catch {}
+          }, 900);
+        }
         return;
       }
-
-      const displayStream = await navigator.mediaDevices.getDisplayMedia({
-        video: { frameRate: 24 },
-        audio: true
-      });
 
       screenCaptureStream = displayStream;
       const videoMediaTrack = displayStream.getVideoTracks()[0];
@@ -2285,9 +2359,9 @@ $("screenBtn").onclick = async () => {
 
       if (audioMediaTracks.length > 0) {
         await publishSystemScreenAudio(audioMediaTracks);
-        showTempBanner("🔊 Ekran va tizim ovozi (ashula) o‘quvchilarga ulashildi");
+        showTempBanner("🔊 Ekran va tizim ovozi o‘quvchilarga ulashildi");
       } else {
-        showTempBanner("⚠️ Ekran ulashildi, lekin tizim/tab ovozi tanlanmadi");
+        showTempBanner("🖥️ Ekran ulashildi (bosing va kattalashtiring)");
       }
 
       screenEnabled = true;
@@ -2299,6 +2373,7 @@ $("screenBtn").onclick = async () => {
     } catch (e) {
       await stopScreenShareAndSystemAudio();
       console.error("Screen share error:", e);
+      showTempBanner("⚠️ Ekran ulashish bekor qilindi yoki qurilmada qo‘llab-quvvatlanmaydi");
     }
   } else {
     await stopScreenShareAndSystemAudio();
@@ -2365,6 +2440,7 @@ function leave() {
   room = null;
   screenEnabled = false;
   camEnabled = false;
+  camFacingMode = "user";
   micEnabled = false;
   myHandRaised = false;
   handQueue = [];
